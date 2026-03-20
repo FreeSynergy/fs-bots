@@ -15,6 +15,12 @@ path = "src/main.rs"
 fsn-channel  = { path = "../../FreeSynergy.Lib/fsn-channel", features = ["all"] }
 fsn-bot      = { path = "../../FreeSynergy.Lib/fsn-bot" }
 fsn-types    = { path = "../../FreeSynergy.Lib/fsn-types" }
+
+# Bot modules (N5-N8)
+bot-broadcast  = { path = "../bot-broadcast" }
+bot-gatekeeper = { path = "../bot-gatekeeper" }
+bot-calendar   = { path = "../bot-calendar" }
+bot-control    = { path = "../bot-control" }
 # fsn-inventory pulls in sea-orm/sqlx-sqlite which conflicts with rusqlite.
 # The runtime resolves inventory data via the FSN HTTP API (Phase P).
 

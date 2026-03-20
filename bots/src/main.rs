@@ -41,13 +41,26 @@ async fn main() -> Result<()> {
 
     let audit = AuditLog::new(Arc::clone(&db));
 
+    // Build command registry
     let mut registry = CommandRegistry::new();
     commands::register_all(&mut registry);
 
-    let dispatcher = CommandDispatcher::new(Arc::new(registry), audit.clone());
-    let trigger = TriggerEngine::new(audit.clone());
+    // Register module commands + collect trigger handlers
+    let pool = db.pool();
+    let mut trigger_handlers: Vec<Box<dyn fsn_bot::TriggerHandler>> = Vec::new();
+    trigger_handlers.extend(bot_broadcast::register(&mut registry, pool.clone()));
+    trigger_handlers.extend(bot_gatekeeper::register(&mut registry, pool.clone()));
+    trigger_handlers.extend(bot_calendar::register(&mut registry));
+    trigger_handlers.extend(bot_control::register(&mut registry, pool));
 
-    let runtime = BotRuntime::new(config, dispatcher, trigger, Arc::clone(&db), audit);
+    // Build trigger engine (returns action receiver)
+    let (mut trigger, action_rx) = TriggerEngine::new(audit.clone());
+    for h in trigger_handlers {
+        trigger.register_boxed(h);
+    }
+
+    let dispatcher = CommandDispatcher::new(Arc::new(registry), audit.clone());
+    let runtime = BotRuntime::new(config, dispatcher, trigger, action_rx, Arc::clone(&db), audit);
     runtime.run().await;
 
     Ok(())

@@ -70,6 +70,17 @@ CREATE TABLE IF NOT EXISTS poll_state (
     last_offset INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (platform, room_id)
 );
+
+CREATE TABLE IF NOT EXISTS child_bots (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL UNIQUE,
+    bot_type    TEXT    NOT NULL,
+    data_dir    TEXT    NOT NULL,
+    status      TEXT    NOT NULL DEFAULT 'stopped',
+    pid         INTEGER,
+    created_at  TEXT    NOT NULL,
+    started_at  TEXT
+);
 "#;
 
 // ── BotDb ─────────────────────────────────────────────────────────────────────
@@ -173,4 +184,227 @@ impl BotDb {
             .fetch_all(&self.pool).await?;
         Ok(rows.into_iter().map(|r| r.get::<String, _>(0)).collect())
     }
+
+    // ── Pool access (for module crates) ───────────────────────────────────────
+
+    /// Return a clone of the underlying SQLite connection pool.
+    ///
+    /// `SqlitePool` is internally reference-counted — cloning is cheap.
+    pub fn pool(&self) -> SqlitePool {
+        self.pool.clone()
+    }
+
+    // ── Join requests (Gatekeeper) ────────────────────────────────────────────
+
+    /// Insert a new join request and return its row id.
+    pub async fn add_join_request(
+        &self,
+        platform: &str,
+        room_id: &str,
+        user_id: &str,
+    ) -> Result<i64> {
+        let row = sqlx::query(
+            "INSERT INTO join_requests (platform, room_id, user_id, status, created_at)
+             VALUES (?, ?, ?, 'pending', ?) RETURNING id",
+        )
+        .bind(platform)
+        .bind(room_id)
+        .bind(user_id)
+        .bind(Utc::now().to_rfc3339())
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.get::<i64, _>(0))
+    }
+
+    /// Fetch a join request by id.
+    pub async fn get_join_request(&self, id: i64) -> Result<Option<JoinRequest>> {
+        let row = sqlx::query(
+            "SELECT id, platform, room_id, user_id, status, iam_result, created_at, resolved_at
+             FROM join_requests WHERE id = ?",
+        )
+        .bind(id)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(|r| JoinRequest {
+            id:          r.get(0),
+            platform:    r.get(1),
+            room_id:     r.get(2),
+            user_id:     r.get(3),
+            status:      r.get(4),
+            iam_result:  r.get(5),
+            created_at:  r.get(6),
+            resolved_at: r.get(7),
+        }))
+    }
+
+    /// List all pending join requests for a room.
+    pub async fn list_pending_join_requests(
+        &self,
+        platform: &str,
+        room_id: &str,
+    ) -> Result<Vec<JoinRequest>> {
+        let rows = sqlx::query(
+            "SELECT id, platform, room_id, user_id, status, iam_result, created_at, resolved_at
+             FROM join_requests WHERE platform = ? AND room_id = ? AND status = 'pending'
+             ORDER BY created_at",
+        )
+        .bind(platform)
+        .bind(room_id)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| JoinRequest {
+                id:          r.get(0),
+                platform:    r.get(1),
+                room_id:     r.get(2),
+                user_id:     r.get(3),
+                status:      r.get(4),
+                iam_result:  r.get(5),
+                created_at:  r.get(6),
+                resolved_at: r.get(7),
+            })
+            .collect())
+    }
+
+    /// Resolve a join request (approve or deny).
+    pub async fn resolve_join_request(
+        &self,
+        id: i64,
+        status: &str,
+        iam_result: Option<&str>,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE join_requests SET status = ?, iam_result = ?, resolved_at = ?
+             WHERE id = ?",
+        )
+        .bind(status)
+        .bind(iam_result)
+        .bind(Utc::now().to_rfc3339())
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    // ── Audit query ───────────────────────────────────────────────────────────
+
+    /// Return the most recent `limit` audit log entries (newest first).
+    pub async fn recent_audit(&self, limit: i64) -> Result<Vec<AuditEntry>> {
+        let rows = sqlx::query(
+            "SELECT id, actor_type, actor_id, platform, action, result, created_at
+             FROM audit_log ORDER BY id DESC LIMIT ?",
+        )
+        .bind(limit)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| AuditEntry {
+                id:         r.get(0),
+                actor_type: r.get(1),
+                actor_id:   r.get(2),
+                platform:   r.get(3),
+                action:     r.get(4),
+                result:     r.get(5),
+                created_at: r.get(6),
+            })
+            .collect())
+    }
+
+    // ── Child bots (Control) ──────────────────────────────────────────────────
+
+    /// Register a child bot entry.
+    pub async fn add_child_bot(&self, name: &str, bot_type: &str, data_dir: &str) -> Result<()> {
+        sqlx::query(
+            "INSERT OR IGNORE INTO child_bots (name, bot_type, data_dir, created_at)
+             VALUES (?, ?, ?, ?)",
+        )
+        .bind(name)
+        .bind(bot_type)
+        .bind(data_dir)
+        .bind(Utc::now().to_rfc3339())
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// List all child bots.
+    pub async fn list_child_bots(&self) -> Result<Vec<ChildBot>> {
+        let rows = sqlx::query(
+            "SELECT id, name, bot_type, data_dir, status, pid, created_at
+             FROM child_bots ORDER BY name",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| ChildBot {
+                id:         r.get(0),
+                name:       r.get(1),
+                bot_type:   r.get(2),
+                data_dir:   r.get(3),
+                status:     r.get(4),
+                pid:        r.get(5),
+                created_at: r.get(6),
+            })
+            .collect())
+    }
+
+    /// Update child bot status (e.g. "running" / "stopped").
+    pub async fn set_child_bot_status(
+        &self,
+        name: &str,
+        status: &str,
+        pid: Option<i64>,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE child_bots SET status = ?, pid = ? WHERE name = ?",
+        )
+        .bind(status)
+        .bind(pid)
+        .bind(name)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+}
+
+// ── Result types ──────────────────────────────────────────────────────────────
+
+/// A join request record.
+#[derive(Debug)]
+pub struct JoinRequest {
+    pub id: i64,
+    pub platform: String,
+    pub room_id: String,
+    pub user_id: String,
+    pub status: String,
+    pub iam_result: Option<String>,
+    pub created_at: String,
+    pub resolved_at: Option<String>,
+}
+
+/// An audit log entry.
+#[derive(Debug)]
+pub struct AuditEntry {
+    pub id: i64,
+    pub actor_type: String,
+    pub actor_id: String,
+    pub platform: Option<String>,
+    pub action: String,
+    pub result: String,
+    pub created_at: String,
+}
+
+/// A registered child bot.
+#[derive(Debug)]
+pub struct ChildBot {
+    pub id: i64,
+    pub name: String,
+    pub bot_type: String,
+    pub data_dir: String,
+    pub status: String,
+    pub pid: Option<i64>,
+    pub created_at: String,
 }

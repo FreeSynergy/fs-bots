@@ -1,0 +1,12 @@
+[package]
+name        = "bot-calendar"
+description = "Calendar module — upcoming event reminders via Bus + /termine command"
+version     = "0.1.0"
+edition     = "2021"
+license     = "MIT"
+authors     = ["FreeSynergy.Net"]
+
+[dependencies]
+fsn-bot     = { path = "../../FreeSynergy.Lib/fsn-bot" }
+async-trait = "0.1"
+tracing     = "0.1"

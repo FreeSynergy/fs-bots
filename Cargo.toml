@@ -1,5 +1,9 @@
 [workspace]
 members = [
     "bots",
+    "bot-broadcast",
+    "bot-gatekeeper",
+    "bot-calendar",
+    "bot-control",
 ]
 resolver = "2"
