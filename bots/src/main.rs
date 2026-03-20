@@ -51,7 +51,8 @@ async fn main() -> Result<()> {
     trigger_handlers.extend(bot_broadcast::register(&mut registry, pool.clone()));
     trigger_handlers.extend(bot_gatekeeper::register(&mut registry, pool.clone()));
     trigger_handlers.extend(bot_calendar::register(&mut registry));
-    trigger_handlers.extend(bot_control::register(&mut registry, pool));
+    trigger_handlers.extend(bot_control::register(&mut registry, pool.clone()));
+    trigger_handlers.extend(bot_room_sync::register(&mut registry, pool));
 
     // Build trigger engine (returns action receiver)
     let (mut trigger, action_rx) = TriggerEngine::new(audit.clone());

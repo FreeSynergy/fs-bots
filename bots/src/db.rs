@@ -81,6 +81,20 @@ CREATE TABLE IF NOT EXISTS child_bots (
     created_at  TEXT    NOT NULL,
     started_at  TEXT
 );
+
+CREATE TABLE IF NOT EXISTS room_collections (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    name        TEXT    NOT NULL UNIQUE,
+    description TEXT,
+    created_at  TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS room_collection_members (
+    collection_id INTEGER NOT NULL REFERENCES room_collections(id) ON DELETE CASCADE,
+    platform      TEXT    NOT NULL,
+    room_id       TEXT    NOT NULL,
+    PRIMARY KEY (collection_id, platform, room_id)
+);
 "#;
 
 // ── BotDb ─────────────────────────────────────────────────────────────────────
@@ -183,6 +197,107 @@ impl BotDb {
             .bind(platform).bind(room_id)
             .fetch_all(&self.pool).await?;
         Ok(rows.into_iter().map(|r| r.get::<String, _>(0)).collect())
+    }
+
+    // ── Room collections (N9) ─────────────────────────────────────────────────
+
+    /// Create a new named collection.
+    pub async fn create_collection(&self, name: &str, description: Option<&str>) -> Result<i64> {
+        let row = sqlx::query(
+            "INSERT INTO room_collections (name, description, created_at) VALUES (?, ?, ?) RETURNING id",
+        )
+        .bind(name).bind(description).bind(Utc::now().to_rfc3339())
+        .fetch_one(&self.pool).await?;
+        Ok(row.get::<i64, _>(0))
+    }
+
+    /// Delete a collection (cascade removes members).
+    pub async fn delete_collection(&self, id: i64) -> Result<()> {
+        sqlx::query("DELETE FROM room_collections WHERE id = ?").bind(id).execute(&self.pool).await?;
+        Ok(())
+    }
+
+    /// List all collections.
+    pub async fn list_collections(&self) -> Result<Vec<RoomCollection>> {
+        let rows = sqlx::query("SELECT id, name, description, created_at FROM room_collections ORDER BY name")
+            .fetch_all(&self.pool).await?;
+        Ok(rows.into_iter().map(|r| RoomCollection {
+            id:          r.get(0),
+            name:        r.get(1),
+            description: r.get(2),
+            created_at:  r.get(3),
+        }).collect())
+    }
+
+    /// Add a room to a collection (idempotent).
+    pub async fn add_to_collection(&self, collection_id: i64, platform: &str, room_id: &str) -> Result<()> {
+        sqlx::query(
+            "INSERT OR IGNORE INTO room_collection_members (collection_id, platform, room_id) VALUES (?, ?, ?)",
+        )
+        .bind(collection_id).bind(platform).bind(room_id)
+        .execute(&self.pool).await?;
+        Ok(())
+    }
+
+    /// Remove a room from a collection.
+    pub async fn remove_from_collection(&self, collection_id: i64, platform: &str, room_id: &str) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM room_collection_members WHERE collection_id = ? AND platform = ? AND room_id = ?",
+        )
+        .bind(collection_id).bind(platform).bind(room_id)
+        .execute(&self.pool).await?;
+        Ok(())
+    }
+
+    /// List all rooms in a collection.
+    pub async fn rooms_in_collection(&self, collection_id: i64) -> Result<Vec<RoomRef>> {
+        let rows = sqlx::query(
+            "SELECT m.platform, m.room_id, k.room_name, k.member_count
+             FROM room_collection_members m
+             LEFT JOIN known_rooms k ON k.platform = m.platform AND k.room_id = m.room_id
+             WHERE m.collection_id = ?",
+        )
+        .bind(collection_id).fetch_all(&self.pool).await?;
+        Ok(rows.into_iter().map(|r| RoomRef {
+            platform:     r.get(0),
+            room_id:      r.get(1),
+            room_name:    r.get(2),
+            member_count: r.get(3),
+        }).collect())
+    }
+
+    /// All known rooms matching an optional filter.
+    pub async fn filter_rooms(&self, filter: &GroupFilter) -> Result<Vec<KnownRoom>> {
+        let mut sql = "SELECT platform, room_id, room_name, member_count, last_seen FROM known_rooms WHERE 1=1".to_string();
+        let mut binds: Vec<String> = Vec::new();
+
+        if let Some(ref platform) = filter.platform {
+            sql.push_str(" AND platform = ?");
+            binds.push(platform.clone());
+        }
+        if let Some(ref name) = filter.name_contains {
+            sql.push_str(" AND room_name LIKE ?");
+            binds.push(format!("%{name}%"));
+        }
+        if let Some(min) = filter.min_members {
+            sql.push_str(&format!(" AND member_count >= {min}"));
+        }
+        if let Some(max) = filter.max_members {
+            sql.push_str(&format!(" AND member_count <= {max}"));
+        }
+        sql.push_str(" ORDER BY room_name");
+
+        let mut q = sqlx::query(&sql);
+        for b in &binds { q = q.bind(b.clone()); }
+
+        let rows = q.fetch_all(&self.pool).await?;
+        Ok(rows.into_iter().map(|r| KnownRoom {
+            platform:     r.get(0),
+            room_id:      r.get(1),
+            room_name:    r.get(2),
+            member_count: r.get(3),
+            last_seen:    r.get(4),
+        }).collect())
     }
 
     // ── Pool access (for module crates) ───────────────────────────────────────
@@ -395,6 +510,47 @@ pub struct AuditEntry {
     pub action: String,
     pub result: String,
     pub created_at: String,
+}
+
+/// A room collection (manual group of rooms).
+#[derive(Debug, Clone)]
+pub struct RoomCollection {
+    pub id:          i64,
+    pub name:        String,
+    pub description: Option<String>,
+    pub created_at:  String,
+}
+
+/// A lightweight room reference (platform + room_id).
+#[derive(Debug, Clone)]
+pub struct RoomRef {
+    pub platform:     String,
+    pub room_id:      String,
+    pub room_name:    Option<String>,
+    pub member_count: Option<i64>,
+}
+
+/// A full known-room record (from the `known_rooms` table).
+#[derive(Debug, Clone)]
+pub struct KnownRoom {
+    pub platform:     String,
+    pub room_id:      String,
+    pub room_name:    Option<String>,
+    pub member_count: Option<i64>,
+    pub last_seen:    String,
+}
+
+/// Filter criteria for room queries (all fields optional, AND-combined).
+#[derive(Debug, Default, Clone)]
+pub struct GroupFilter {
+    /// Filter by messenger platform name.
+    pub platform:       Option<String>,
+    /// Substring match on room name (case-insensitive via LIKE).
+    pub name_contains:  Option<String>,
+    /// Minimum member count (inclusive).
+    pub min_members:    Option<i64>,
+    /// Maximum member count (inclusive).
+    pub max_members:    Option<i64>,
 }
 
 /// A registered child bot.

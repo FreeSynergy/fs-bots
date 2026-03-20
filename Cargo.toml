@@ -5,5 +5,6 @@ members = [
     "bot-gatekeeper",
     "bot-calendar",
     "bot-control",
+    "bot-room-sync",
 ]
 resolver = "2"
