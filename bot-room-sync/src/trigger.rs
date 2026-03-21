@@ -4,20 +4,20 @@
 // event addressed to the target room. The runtime routes it via the correct
 // adapter. Same-platform rooms are forwarded directly.
 
+use std::sync::Arc;
 use async_trait::async_trait;
-use fsn_bot::{TriggerAction, TriggerEvent, TriggerHandler};
+use bot_db::BotDb;
+use fs_bot::{TriggerAction, TriggerEvent, TriggerHandler};
 use serde_json::Value;
-use sqlx::SqlitePool;
 use tracing::warn;
-use crate::SyncDb;
 
 pub struct SyncHandler {
-    db: SyncDb,
+    db: Arc<BotDb>,
 }
 
 impl SyncHandler {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self { db: SyncDb::new(pool) }
+    pub fn new(db: Arc<BotDb>) -> Self {
+        Self { db }
     }
 }
 
@@ -28,12 +28,6 @@ impl TriggerHandler for SyncHandler {
     }
 
     async fn on_event(&self, event: TriggerEvent) -> Vec<TriggerAction> {
-        // Migrate schema on first event (bot may not have run /sync-start yet).
-        if let Err(e) = self.db.migrate().await {
-            warn!("sync: DB migration failed: {e}");
-            return vec![];
-        }
-
         let src_platform = match event.payload.get("platform").and_then(Value::as_str) {
             Some(p) => p.to_string(),
             None    => return vec![],
@@ -50,7 +44,7 @@ impl TriggerHandler for SyncHandler {
         let msg_id = event.payload.get("message_id").and_then(Value::as_str).unwrap_or("");
 
         let rules = match self.db.active_rules_for(&src_platform, &src_room).await {
-            Ok(r) => r,
+            Ok(r)  => r,
             Err(e) => {
                 warn!("sync: rule query failed: {e}");
                 return vec![];
@@ -60,7 +54,6 @@ impl TriggerHandler for SyncHandler {
         let mut actions = Vec::new();
 
         for rule in &rules {
-            // Determine forward direction
             let (forward_to_platform, forward_to_room): (String, String) =
                 if rule.source_platform == src_platform
                     && rule.source_room == src_room
@@ -76,11 +69,10 @@ impl TriggerHandler for SyncHandler {
                     continue;
                 };
 
-            // Deduplicate — skip if already forwarded
             if !msg_id.is_empty() {
                 let direction_key = format!("{src_platform}→{forward_to_platform}");
                 match self.db.record_forward(rule.id, &direction_key, msg_id).await {
-                    Ok(false) => continue, // already forwarded
+                    Ok(false) => continue,
                     Err(e)    => { warn!("sync: dedup record failed: {e}"); }
                     Ok(true)  => {}
                 }
@@ -88,8 +80,8 @@ impl TriggerHandler for SyncHandler {
 
             let forwarded_text = format!("[{src_platform}/{src_room}] <{sender}> {text}");
             actions.push(TriggerAction::SendToRoom {
-                platform: forward_to_platform.to_string(),
-                room_id:  forward_to_room.to_string(),
+                platform: forward_to_platform,
+                room_id:  forward_to_room,
                 text:     forwarded_text,
             });
         }

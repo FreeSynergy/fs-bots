@@ -1,13 +1,13 @@
-// fsn-bot-runtime — FreeSynergy bot instance entry point.
+// fs-bot-runtime — FreeSynergy bot instance entry point.
 //
-// Usage: fsn-bot-runtime --config <path/to/bot.toml>
+// Usage: fs-bot-runtime --config <path/to/bot.toml>
 
 use std::sync::Arc;
 use anyhow::{Context, Result};
-use fsn_bot::CommandRegistry;
+use fs_bot::CommandRegistry;
 use tracing_subscriber::EnvFilter;
 
-use fsn_bots::{
+use fs_bots::{
     audit::AuditLog,
     config::BotInstanceConfig,
     db::BotDb,
@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
     let config: BotInstanceConfig = toml::from_str(&config_str)
         .context("Invalid bot.toml")?;
 
-    let db_path = format!("{}/fsn-botmanager.db", config.data_dir);
+    let db_path = format!("{}/fs-botmanager.db", config.data_dir);
     let db = BotDb::open(&db_path).await
         .with_context(|| format!("Cannot open database '{}'", db_path))?;
     let db = Arc::new(db);
@@ -46,13 +46,12 @@ async fn main() -> Result<()> {
     commands::register_all(&mut registry);
 
     // Register module commands + collect trigger handlers
-    let pool = db.pool();
-    let mut trigger_handlers: Vec<Box<dyn fsn_bot::TriggerHandler>> = Vec::new();
-    trigger_handlers.extend(bot_broadcast::register(&mut registry, pool.clone()));
-    trigger_handlers.extend(bot_gatekeeper::register(&mut registry, pool.clone()));
+    let mut trigger_handlers: Vec<Box<dyn fs_bot::TriggerHandler>> = Vec::new();
+    trigger_handlers.extend(bot_broadcast::register(&mut registry, Arc::clone(&db)));
+    trigger_handlers.extend(bot_gatekeeper::register(&mut registry, Arc::clone(&db)));
     trigger_handlers.extend(bot_calendar::register(&mut registry));
-    trigger_handlers.extend(bot_control::register(&mut registry, pool.clone()));
-    trigger_handlers.extend(bot_room_sync::register(&mut registry, pool));
+    trigger_handlers.extend(bot_control::register(&mut registry, Arc::clone(&db)));
+    trigger_handlers.extend(bot_room_sync::register(&mut registry, Arc::clone(&db)));
 
     // Build trigger engine (returns action receiver)
     let (mut trigger, action_rx) = TriggerEngine::new(audit.clone());

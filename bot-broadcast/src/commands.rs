@@ -1,19 +1,17 @@
 // Broadcast commands: /subscribe, /unsubscribe, /subscriptions
 
 use async_trait::async_trait;
-use chrono::Utc;
-use fsn_bot::{BotCommand, BotResponse, CommandContext, CommandRegistry, Right};
-use sqlx::SqlitePool;
+use bot_db::BotDb;
+use fs_bot::{BotCommand, BotResponse, CommandContext, CommandRegistry, Right};
+use std::sync::Arc;
 
-pub fn register_all(registry: &mut CommandRegistry, pool: SqlitePool) {
-    registry.register(SubscribeCommand   { pool: pool.clone() });
-    registry.register(UnsubscribeCommand { pool: pool.clone() });
-    registry.register(SubscriptionsCommand { pool });
+pub fn register_all(registry: &mut CommandRegistry, db: Arc<BotDb>) {
+    registry.register(SubscribeCommand   { db: db.clone() });
+    registry.register(UnsubscribeCommand { db: db.clone() });
+    registry.register(SubscriptionsCommand { db });
 }
 
-// ── /subscribe ────────────────────────────────────────────────────────────────
-
-pub struct SubscribeCommand { pub pool: SqlitePool }
+pub struct SubscribeCommand { pub db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for SubscribeCommand {
@@ -26,29 +24,14 @@ impl BotCommand for SubscribeCommand {
         let Some(topic) = ctx.arg0() else {
             return BotResponse::error("Usage: /subscribe <topic>");
         };
-        let platform = ctx.platform.label();
-        let room_id  = ctx.room().as_str();
-
-        match sqlx::query(
-            "INSERT OR IGNORE INTO subscriptions (platform, room_id, topic, created_at)
-             VALUES (?, ?, ?, ?)",
-        )
-        .bind(platform)
-        .bind(room_id)
-        .bind(topic)
-        .bind(Utc::now().to_rfc3339())
-        .execute(&self.pool)
-        .await
-        {
+        match self.db.subscribe(&ctx.platform, &ctx.room_id, topic).await {
             Ok(_)  => BotResponse::text(format!("Subscribed to `{topic}`.")),
             Err(e) => BotResponse::error(format!("DB error: {e}")),
         }
     }
 }
 
-// ── /unsubscribe ──────────────────────────────────────────────────────────────
-
-pub struct UnsubscribeCommand { pub pool: SqlitePool }
+pub struct UnsubscribeCommand { pub db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for UnsubscribeCommand {
@@ -61,27 +44,14 @@ impl BotCommand for UnsubscribeCommand {
         let Some(topic) = ctx.arg0() else {
             return BotResponse::error("Usage: /unsubscribe <topic>");
         };
-        let platform = ctx.platform.label();
-        let room_id  = ctx.room().as_str();
-
-        match sqlx::query(
-            "DELETE FROM subscriptions WHERE platform = ? AND room_id = ? AND topic = ?",
-        )
-        .bind(platform)
-        .bind(room_id)
-        .bind(topic)
-        .execute(&self.pool)
-        .await
-        {
+        match self.db.unsubscribe(&ctx.platform, &ctx.room_id, topic).await {
             Ok(_)  => BotResponse::text(format!("Unsubscribed from `{topic}`.")),
             Err(e) => BotResponse::error(format!("DB error: {e}")),
         }
     }
 }
 
-// ── /subscriptions ────────────────────────────────────────────────────────────
-
-pub struct SubscriptionsCommand { pub pool: SqlitePool }
+pub struct SubscriptionsCommand { pub db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for SubscriptionsCommand {
@@ -90,33 +60,13 @@ impl BotCommand for SubscriptionsCommand {
     fn required_right(&self) -> Right { Right::Member }
 
     async fn execute(&self, ctx: CommandContext) -> BotResponse {
-        let platform = ctx.platform.label();
-        let room_id  = ctx.room().as_str();
-
-        let rows = sqlx::query(
-            "SELECT topic FROM subscriptions WHERE platform = ? AND room_id = ? ORDER BY topic",
-        )
-        .bind(platform)
-        .bind(room_id)
-        .fetch_all(&self.pool)
-        .await;
-
-        match rows {
+        match self.db.subscriptions_for_room(&ctx.platform, &ctx.room_id).await {
             Err(e) => BotResponse::error(format!("DB error: {e}")),
-            Ok(rows) if rows.is_empty() => {
-                BotResponse::text("No active subscriptions for this room.")
-            }
-            Ok(rows) => {
-                use sqlx::Row;
-                let topics: Vec<String> = rows
-                    .iter()
-                    .map(|r| r.get::<String, _>(0))
-                    .collect();
-                BotResponse::text(format!(
-                    "Active subscriptions:\n{}",
-                    topics.iter().map(|t| format!("  • {t}")).collect::<Vec<_>>().join("\n")
-                ))
-            }
+            Ok(topics) if topics.is_empty() => BotResponse::text("No active subscriptions."),
+            Ok(topics) => BotResponse::text(format!(
+                "Active subscriptions:\n{}",
+                topics.iter().map(|t| format!("  • {t}")).collect::<Vec<_>>().join("\n")
+            )),
         }
     }
 }

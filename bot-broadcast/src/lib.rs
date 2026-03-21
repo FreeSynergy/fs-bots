@@ -3,19 +3,15 @@
 // Commands: /subscribe <topic>, /unsubscribe <topic>, /subscriptions
 // Trigger:  BroadcastHandler listens on "**" and forwards events to subscribed rooms.
 
-use fsn_bot::{CommandRegistry, TriggerHandler};
-use sqlx::SqlitePool;
+use std::sync::Arc;
+use bot_db::BotDb;
+use fs_bot::{CommandRegistry, TriggerHandler};
 
 mod commands;
 mod trigger;
 
 /// Register all broadcast commands and return the trigger handler.
-///
-/// The caller (runtime) registers the returned handlers into `TriggerEngine`.
-pub fn register(
-    registry: &mut CommandRegistry,
-    pool: SqlitePool,
-) -> Vec<Box<dyn TriggerHandler>> {
-    commands::register_all(registry, pool.clone());
-    vec![Box::new(trigger::BroadcastHandler::new(pool))]
+pub fn register(registry: &mut CommandRegistry, db: Arc<BotDb>) -> Vec<Box<dyn TriggerHandler>> {
+    commands::register_all(registry, db.clone());
+    vec![Box::new(trigger::BroadcastHandler::new(db))]
 }

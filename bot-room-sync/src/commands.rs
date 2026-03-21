@@ -1,20 +1,19 @@
 // Room-sync commands: /sync-start, /sync-stop, /sync-status
 
+use std::sync::Arc;
 use async_trait::async_trait;
-use fsn_bot::{BotCommand, BotResponse, CommandContext, CommandRegistry, Right};
-use sqlx::SqlitePool;
-use crate::SyncDb;
+use bot_db::BotDb;
+use fs_bot::{BotCommand, BotResponse, CommandContext, CommandRegistry, Right};
 
-pub fn register_all(registry: &mut CommandRegistry, pool: SqlitePool) {
-    let db = SyncDb::new(pool);
-    registry.register(SyncStartCommand { db: db.clone() });
-    registry.register(SyncStopCommand  { db: db.clone() });
+pub fn register_all(registry: &mut CommandRegistry, db: Arc<BotDb>) {
+    registry.register(SyncStartCommand  { db: db.clone() });
+    registry.register(SyncStopCommand   { db: db.clone() });
     registry.register(SyncStatusCommand { db });
 }
 
 // ── /sync-start ───────────────────────────────────────────────────────────────
 
-struct SyncStartCommand { db: SyncDb }
+struct SyncStartCommand { db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for SyncStartCommand {
@@ -31,18 +30,12 @@ impl BotCommand for SyncStartCommand {
             return BotResponse::error("Usage: /sync-start <target_platform> <target_room>");
         };
 
-        // Migrate schema in case this is the first use
-        if let Err(e) = self.db.migrate().await {
-            return BotResponse::error(format!("DB migration error: {e}"));
-        }
+        let src_platform = ctx.platform.as_str();
+        let src_room     = ctx.room_id.as_str();
 
-        let src_platform = ctx.platform.label();
-        let src_room     = ctx.room();
-
-        match self.db.create_rule(src_platform, src_room.as_str(), tgt_platform, tgt_room, "both", false).await {
+        match self.db.create_rule(src_platform, src_room, tgt_platform, tgt_room, "both", false).await {
             Ok(id) => BotResponse::text(format!(
-                "Sync rule #{id} created: {src_platform}/{} ↔ {tgt_platform}/{tgt_room}",
-                src_room.as_str()
+                "Sync rule #{id} created: {src_platform}/{src_room} ↔ {tgt_platform}/{tgt_room}",
             )),
             Err(e) => BotResponse::error(format!("Error creating sync rule: {e}")),
         }
@@ -51,7 +44,7 @@ impl BotCommand for SyncStartCommand {
 
 // ── /sync-stop ────────────────────────────────────────────────────────────────
 
-struct SyncStopCommand { db: SyncDb }
+struct SyncStopCommand { db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for SyncStopCommand {
@@ -68,10 +61,10 @@ impl BotCommand for SyncStopCommand {
             return BotResponse::error("Usage: /sync-stop <target_platform> <target_room>");
         };
 
-        let src_platform = ctx.platform.label();
-        let src_room     = ctx.room();
+        let src_platform = ctx.platform.as_str();
+        let src_room     = ctx.room_id.as_str();
 
-        match self.db.disable_rule(src_platform, src_room.as_str(), tgt_platform, tgt_room).await {
+        match self.db.disable_rule(src_platform, src_room, tgt_platform, tgt_room).await {
             Ok(true)  => BotResponse::text(format!("Sync with {tgt_platform}/{tgt_room} stopped.")),
             Ok(false) => BotResponse::error("No active sync rule found for those rooms."),
             Err(e)    => BotResponse::error(format!("Error: {e}")),
@@ -81,7 +74,7 @@ impl BotCommand for SyncStopCommand {
 
 // ── /sync-status ──────────────────────────────────────────────────────────────
 
-struct SyncStatusCommand { db: SyncDb }
+struct SyncStatusCommand { db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for SyncStatusCommand {
@@ -90,15 +83,11 @@ impl BotCommand for SyncStatusCommand {
     fn required_right(&self) -> Right { Right::Member }
 
     async fn execute(&self, ctx: CommandContext) -> BotResponse {
-        let platform = ctx.platform.label();
-        let room     = ctx.room();
+        let platform = ctx.platform.as_str();
+        let room     = ctx.room_id.as_str();
 
-        if let Err(e) = self.db.migrate().await {
-            return BotResponse::error(format!("DB migration error: {e}"));
-        }
-
-        match self.db.active_rules_for(platform, room.as_str()).await {
-            Err(e)               => BotResponse::error(format!("DB error: {e}")),
+        match self.db.active_rules_for(platform, room).await {
+            Err(e)                        => BotResponse::error(format!("DB error: {e}")),
             Ok(rules) if rules.is_empty() => BotResponse::text("No active sync rules for this room."),
             Ok(rules) => {
                 let lines: Vec<String> = rules.iter().map(|r| {

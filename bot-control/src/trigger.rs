@@ -1,7 +1,7 @@
 // ControlHandler — listens on "bot.**" Bus events and logs them.
 
 use async_trait::async_trait;
-use fsn_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
+use fs_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
 use tracing::info;
 
 /// Listens on `bot.**` events.

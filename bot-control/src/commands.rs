@@ -1,20 +1,18 @@
 // Control commands: /bots, /bot-create, /bot-status, /bot-logs
 
 use async_trait::async_trait;
-use chrono::Utc;
-use fsn_bot::{BotCommand, BotResponse, CommandContext, CommandRegistry, Right};
-use sqlx::{Row, SqlitePool};
+use bot_db::BotDb;
+use fs_bot::{BotCommand, BotResponse, CommandContext, CommandRegistry, Right};
+use std::sync::Arc;
 
-pub fn register_all(registry: &mut CommandRegistry, pool: SqlitePool) {
-    registry.register(BotsCommand      { pool: pool.clone() });
-    registry.register(BotCreateCommand { pool: pool.clone() });
-    registry.register(BotStatusCommand { pool: pool.clone() });
-    registry.register(BotLogsCommand   { pool });
+pub fn register_all(registry: &mut CommandRegistry, db: Arc<BotDb>) {
+    registry.register(BotsCommand      { db: db.clone() });
+    registry.register(BotCreateCommand { db: db.clone() });
+    registry.register(BotStatusCommand { db: db.clone() });
+    registry.register(BotLogsCommand   { db });
 }
 
-// ── /bots ─────────────────────────────────────────────────────────────────────
-
-pub struct BotsCommand { pub pool: SqlitePool }
+pub struct BotsCommand { pub db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for BotsCommand {
@@ -23,38 +21,23 @@ impl BotCommand for BotsCommand {
     fn required_right(&self) -> Right { Right::Admin }
 
     async fn execute(&self, _ctx: CommandContext) -> BotResponse {
-        let rows = sqlx::query(
-            "SELECT name, bot_type, status, pid FROM child_bots ORDER BY name",
-        )
-        .fetch_all(&self.pool)
-        .await;
-
-        match rows {
+        match self.db.list_child_bots().await {
             Err(e) => BotResponse::error(format!("DB error: {e}")),
-            Ok(rows) if rows.is_empty() => {
+            Ok(bots) if bots.is_empty() => {
                 BotResponse::text("No child bots registered. Use /bot-create <name> <type>.")
             }
-            Ok(rows) => {
-                let lines: Vec<String> = rows
-                    .iter()
-                    .map(|r| {
-                        let name:   String       = r.get(0);
-                        let kind:   String       = r.get(1);
-                        let status: String       = r.get(2);
-                        let pid:    Option<i64>  = r.get(3);
-                        let pid_str = pid.map(|p| format!(" (pid {p})")).unwrap_or_default();
-                        format!("  • {name} [{kind}] — {status}{pid_str}")
-                    })
-                    .collect();
+            Ok(bots) => {
+                let lines: Vec<String> = bots.iter().map(|b| {
+                    let pid_str = b.pid.map(|p| format!(" (pid {p})")).unwrap_or_default();
+                    format!("  • {} [{}] — {}{}", b.name, b.bot_type, b.status, pid_str)
+                }).collect();
                 BotResponse::text(format!("Child bots:\n{}", lines.join("\n")))
             }
         }
     }
 }
 
-// ── /bot-create ───────────────────────────────────────────────────────────────
-
-pub struct BotCreateCommand { pub pool: SqlitePool }
+pub struct BotCreateCommand { pub db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for BotCreateCommand {
@@ -65,40 +48,21 @@ impl BotCommand for BotCreateCommand {
 
     async fn execute(&self, ctx: CommandContext) -> BotResponse {
         if ctx.args.len() < 2 {
-            return BotResponse::error("Usage: /bot-create <name> <type>\nExample: /bot-create support broadcast");
+            return BotResponse::error("Usage: /bot-create <name> <type>");
         }
         let name     = &ctx.args[0];
         let bot_type = &ctx.args[1];
-        let data_dir = format!("/var/lib/fsn-bots/{name}");
-
-        let res = sqlx::query(
-            "INSERT OR IGNORE INTO child_bots (name, bot_type, data_dir, status, created_at)
-             VALUES (?, ?, ?, 'stopped', ?)",
-        )
-        .bind(name)
-        .bind(bot_type)
-        .bind(&data_dir)
-        .bind(Utc::now().to_rfc3339())
-        .execute(&self.pool)
-        .await;
-
-        match res {
-            Ok(r) if r.rows_affected() == 0 => {
-                BotResponse::error(format!("Bot `{name}` already exists."))
-            }
+        let data_dir = format!("/var/lib/fs-bots/{name}");
+        match self.db.add_child_bot(name, bot_type, &data_dir).await {
             Ok(_) => BotResponse::text(format!(
-                "Child bot `{name}` ({bot_type}) registered.\n\
-                 Data dir: {data_dir}\n\
-                 Process management will be added in Phase N11."
+                "Child bot `{name}` ({bot_type}) registered.\nData dir: {data_dir}"
             )),
             Err(e) => BotResponse::error(format!("DB error: {e}")),
         }
     }
 }
 
-// ── /bot-status ───────────────────────────────────────────────────────────────
-
-pub struct BotStatusCommand { pub pool: SqlitePool }
+pub struct BotStatusCommand { pub db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for BotStatusCommand {
@@ -111,39 +75,23 @@ impl BotCommand for BotStatusCommand {
         let Some(name) = ctx.arg0() else {
             return BotResponse::error("Usage: /bot-status <name>");
         };
-
-        let row = sqlx::query(
-            "SELECT name, bot_type, status, pid, data_dir, created_at
-             FROM child_bots WHERE name = ?",
-        )
-        .bind(name)
-        .fetch_optional(&self.pool)
-        .await;
-
-        match row {
+        match self.db.list_child_bots().await {
             Err(e) => BotResponse::error(format!("DB error: {e}")),
-            Ok(None) => BotResponse::error(format!("Bot `{name}` not found.")),
-            Ok(Some(r)) => {
-                let bot_name: String       = r.get(0);
-                let kind:     String       = r.get(1);
-                let status:   String       = r.get(2);
-                let pid:      Option<i64>  = r.get(3);
-                let data_dir: String       = r.get(4);
-                let created:  String       = r.get(5);
-                let pid_line = pid
-                    .map(|p| format!("\nPID:      {p}"))
-                    .unwrap_or_default();
-                BotResponse::text(format!(
-                    "Bot:      {bot_name}\nType:     {kind}\nStatus:   {status}{pid_line}\nData:     {data_dir}\nCreated:  {created}"
-                ))
-            }
+            Ok(bots) => match bots.into_iter().find(|b| b.name == name) {
+                None => BotResponse::error(format!("Bot `{name}` not found.")),
+                Some(b) => {
+                    let pid_line = b.pid.map(|p| format!("\nPID:      {p}")).unwrap_or_default();
+                    BotResponse::text(format!(
+                        "Bot:      {}\nType:     {}\nStatus:   {}{}\nData:     {}\nCreated:  {}",
+                        b.name, b.bot_type, b.status, pid_line, b.data_dir, b.created_at
+                    ))
+                }
+            },
         }
     }
 }
 
-// ── /bot-logs ─────────────────────────────────────────────────────────────────
-
-pub struct BotLogsCommand { pub pool: SqlitePool }
+pub struct BotLogsCommand { pub db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for BotLogsCommand {
@@ -153,38 +101,18 @@ impl BotCommand for BotLogsCommand {
     fn usage(&self) -> Option<&str> { Some("bot-logs [limit]") }
 
     async fn execute(&self, ctx: CommandContext) -> BotResponse {
-        let limit: i64 = ctx.arg0()
+        let limit: u64 = ctx.arg0()
             .and_then(|s| s.parse().ok())
-            .unwrap_or(10)
+            .unwrap_or(10_u64)
             .min(50);
-
-        let rows = sqlx::query(
-            "SELECT actor_type, actor_id, action, result, created_at
-             FROM audit_log ORDER BY id DESC LIMIT ?",
-        )
-        .bind(limit)
-        .fetch_all(&self.pool)
-        .await;
-
-        match rows {
+        match self.db.recent_audit(limit).await {
             Err(e) => BotResponse::error(format!("DB error: {e}")),
-            Ok(rows) if rows.is_empty() => BotResponse::text("Audit log is empty."),
-            Ok(rows) => {
-                let lines: Vec<String> = rows
-                    .iter()
-                    .map(|r| {
-                        let actor_type: String = r.get(0);
-                        let actor_id:   String = r.get(1);
-                        let action:     String = r.get(2);
-                        let result:     String = r.get(3);
-                        let ts:         String = r.get(4);
-                        format!("[{ts}] {actor_type}/{actor_id} — {action} → {result}")
-                    })
-                    .collect();
-                BotResponse::text(format!(
-                    "Last {limit} audit entries:\n{}",
-                    lines.join("\n")
-                ))
+            Ok(entries) if entries.is_empty() => BotResponse::text("Audit log is empty."),
+            Ok(entries) => {
+                let lines: Vec<String> = entries.iter().map(|e| {
+                    format!("[{}] {}/{} — {} → {}", e.created_at, e.actor_type, e.actor_id, e.action, e.result)
+                }).collect();
+                BotResponse::text(format!("Last {limit} audit entries:\n{}", lines.join("\n")))
             }
         }
     }

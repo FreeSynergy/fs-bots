@@ -1,9 +1,9 @@
 // GatekeeperHandler — queues chat.join_request events and notifies admins.
 
+use std::sync::Arc;
 use async_trait::async_trait;
-use chrono::Utc;
-use fsn_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
-use sqlx::SqlitePool;
+use bot_db::BotDb;
+use fs_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
 use tracing::warn;
 
 /// Listens on `chat.join_request` events.
@@ -13,12 +13,12 @@ use tracing::warn;
 /// { "platform": "telegram", "room_id": "...", "user_id": "...", "user_name": "..." }
 /// ```
 pub struct GatekeeperHandler {
-    pool: SqlitePool,
+    db: Arc<BotDb>,
 }
 
 impl GatekeeperHandler {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+    pub fn new(db: Arc<BotDb>) -> Self {
+        Self { db }
     }
 }
 
@@ -41,28 +41,14 @@ impl TriggerHandler for GatekeeperHandler {
             return vec![];
         }
 
-        // Store join request
-        let res = sqlx::query(
-            "INSERT INTO join_requests
-             (platform, room_id, user_id, status, created_at)
-             VALUES (?, ?, ?, 'pending', ?)",
-        )
-        .bind(&platform)
-        .bind(&room_id)
-        .bind(&user_id)
-        .bind(Utc::now().to_rfc3339())
-        .execute(&self.pool)
-        .await;
-
-        let request_id = match res {
-            Ok(r) => r.last_insert_rowid(),
+        let request_id = match self.db.add_join_request(&platform, &room_id, &user_id).await {
+            Ok(id) => id,
             Err(e) => {
                 warn!("GatekeeperHandler DB error: {e}");
                 return vec![];
             }
         };
 
-        // Notify admins in the room
         let text = format!(
             "Join request #{request_id} from `{user_name}` ({user_id}).\n\
              Use /approve {request_id} or /deny {request_id}."

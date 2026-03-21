@@ -1,18 +1,19 @@
 // BroadcastHandler — forwards Bus events to subscribed rooms.
 
+use std::sync::Arc;
 use async_trait::async_trait;
-use fsn_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
-use sqlx::{Row, SqlitePool};
+use bot_db::BotDb;
+use fs_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
 use tracing::warn;
 
 /// Listens on all Bus topics and sends events to rooms that have subscribed.
 pub struct BroadcastHandler {
-    pool: SqlitePool,
+    db: Arc<BotDb>,
 }
 
 impl BroadcastHandler {
-    pub fn new(pool: SqlitePool) -> Self {
-        Self { pool }
+    pub fn new(db: Arc<BotDb>) -> Self {
+        Self { db }
     }
 }
 
@@ -23,28 +24,25 @@ impl TriggerHandler for BroadcastHandler {
     }
 
     async fn on_event(&self, event: TriggerEvent) -> Vec<TriggerAction> {
-        // Find all rooms subscribed to this exact topic
-        let rows = sqlx::query(
-            "SELECT platform, room_id FROM subscriptions WHERE topic = ?",
-        )
-        .bind(&event.topic)
-        .fetch_all(&self.pool)
-        .await
-        .unwrap_or_else(|e| {
-            warn!("BroadcastHandler DB error: {e}");
-            vec![]
-        });
+        let subscriptions = match self.db.subscriptions_for_room_by_topic(&event.topic).await {
+            Ok(subs) => subs,
+            Err(e) => {
+                warn!("BroadcastHandler DB error: {e}");
+                return vec![];
+            }
+        };
 
         let payload_str = match &event.payload {
             serde_json::Value::String(s) => s.clone(),
             other => other.to_string(),
         };
 
-        rows.into_iter()
-            .map(|r| TriggerAction::SendToRoom {
-                platform: r.get(0),
-                room_id:  r.get(1),
-                text:     format!("[{}] {}", event.topic, payload_str),
+        subscriptions
+            .into_iter()
+            .map(|(platform, room_id)| TriggerAction::SendToRoom {
+                platform,
+                room_id,
+                text: format!("[{}] {}", event.topic, payload_str),
             })
             .collect()
     }

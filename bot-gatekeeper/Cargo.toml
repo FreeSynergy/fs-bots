@@ -7,10 +7,11 @@ license     = "MIT"
 authors     = ["FreeSynergy.Net"]
 
 [dependencies]
-fsn-bot   = { path = "../../FreeSynergy.Lib/fsn-bot" }
-fsn-types = { path = "../../FreeSynergy.Lib/fsn-types" }
+fs-bot   = { path = "../../fs-libs/fs-bot" }
+bot-db  = { path = "../bot-db" }
+fs-types = { path = "../../fs-libs/fs-types" }
 
-sqlx        = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls"] }
+
 tokio       = { version = "1", features = ["full"] }
 async-trait = "0.1"
 serde_json  = "1"

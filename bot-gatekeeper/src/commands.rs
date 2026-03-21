@@ -1,20 +1,17 @@
 // Gatekeeper commands: /verify, /approve, /deny
 
 use async_trait::async_trait;
-use chrono::Utc;
-use fsn_bot::{BotCommand, BotResponse, CommandContext, CommandRegistry, Right};
-use sqlx::{Row, SqlitePool};
+use bot_db::BotDb;
+use fs_bot::{BotCommand, BotResponse, CommandContext, CommandRegistry, Right};
+use std::sync::Arc;
 
-pub fn register_all(registry: &mut CommandRegistry, pool: SqlitePool) {
-    registry.register(VerifyCommand  { pool: pool.clone() });
-    registry.register(ApproveCommand { pool: pool.clone() });
-    registry.register(DenyCommand    { pool });
+pub fn register_all(registry: &mut CommandRegistry, db: Arc<BotDb>) {
+    registry.register(VerifyCommand  { db: db.clone() });
+    registry.register(ApproveCommand { db: db.clone() });
+    registry.register(DenyCommand    { db });
 }
 
-// ── /verify ───────────────────────────────────────────────────────────────────
-
-/// Check a user's IAM status and add a join request if none exists.
-pub struct VerifyCommand { pub pool: SqlitePool }
+pub struct VerifyCommand { pub db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for VerifyCommand {
@@ -27,62 +24,32 @@ impl BotCommand for VerifyCommand {
         let Some(user_id) = ctx.arg0() else {
             return BotResponse::error("Usage: /verify <user_id>");
         };
-        let platform = ctx.platform.label();
-        let room_id  = ctx.room().as_str();
+        let platform = ctx.platform.as_str();
+        let room_id  = ctx.room_id.as_str();
 
         // Check if request already exists
-        let existing = sqlx::query(
-            "SELECT id, status FROM join_requests
-             WHERE platform = ? AND room_id = ? AND user_id = ?
-             ORDER BY id DESC LIMIT 1",
-        )
-        .bind(platform)
-        .bind(room_id)
-        .bind(user_id)
-        .fetch_optional(&self.pool)
-        .await;
-
-        match existing {
-            Ok(Some(row)) => {
-                let id: i64 = row.get(0);
-                let status: String = row.get(1);
-                BotResponse::text(format!(
-                    "Request #{id} for user `{user_id}` already exists (status: {status})."
-                ))
-            }
-            Ok(None) => {
+        match self.db.list_pending_join_requests(platform, room_id).await {
+            Err(e) => BotResponse::error(format!("DB error: {e}")),
+            Ok(existing) => {
+                if let Some(req) = existing.iter().find(|r| r.user_id == user_id) {
+                    return BotResponse::text(format!(
+                        "Request #{} for user `{user_id}` already exists (status: {}).",
+                        req.id, req.status
+                    ));
+                }
                 // TODO Phase P: send iam.check.user Bus event, await response
-                // For now: create pending request
-                let res = sqlx::query(
-                    "INSERT INTO join_requests
-                     (platform, room_id, user_id, status, iam_result, created_at)
-                     VALUES (?, ?, ?, 'pending', 'iam-check-pending', ?) RETURNING id",
-                )
-                .bind(platform)
-                .bind(room_id)
-                .bind(user_id)
-                .bind(Utc::now().to_rfc3339())
-                .fetch_one(&self.pool)
-                .await;
-
-                match res {
-                    Ok(row) => {
-                        let id: i64 = row.get(0);
-                        BotResponse::text(format!(
-                            "Join request #{id} queued for `{user_id}`. IAM check pending (Phase P). Use /approve {id} or /deny {id}."
-                        ))
-                    }
+                match self.db.add_join_request(platform, room_id, user_id).await {
+                    Ok(id) => BotResponse::text(format!(
+                        "Join request #{id} queued for `{user_id}`. IAM check pending (Phase P). Use /approve {id} or /deny {id}."
+                    )),
                     Err(e) => BotResponse::error(format!("DB error: {e}")),
                 }
             }
-            Err(e) => BotResponse::error(format!("DB error: {e}")),
         }
     }
 }
 
-// ── /approve ──────────────────────────────────────────────────────────────────
-
-pub struct ApproveCommand { pub pool: SqlitePool }
+pub struct ApproveCommand { pub db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for ApproveCommand {
@@ -98,19 +65,20 @@ impl BotCommand for ApproveCommand {
         let Ok(id) = id_str.parse::<i64>() else {
             return BotResponse::error("Request ID must be a number.");
         };
-
-        match resolve_request(&self.pool, id, "approved").await {
-            Ok(user_id) => BotResponse::text(format!(
-                "Request #{id} approved. User `{user_id}` can now be invited."
-            )),
-            Err(e) => BotResponse::error(e),
+        match self.db.resolve_join_request(id, "approved", None).await {
+            Ok(_) => {
+                let user = self.db.get_join_request(id).await
+                    .ok().flatten()
+                    .map(|r| r.user_id)
+                    .unwrap_or_else(|| "unknown".to_string());
+                BotResponse::text(format!("Request #{id} approved. User `{user}` can now be invited."))
+            }
+            Err(e) => BotResponse::error(format!("{e}")),
         }
     }
 }
 
-// ── /deny ─────────────────────────────────────────────────────────────────────
-
-pub struct DenyCommand { pub pool: SqlitePool }
+pub struct DenyCommand { pub db: Arc<BotDb> }
 
 #[async_trait]
 impl BotCommand for DenyCommand {
@@ -126,47 +94,9 @@ impl BotCommand for DenyCommand {
         let Ok(id) = id_str.parse::<i64>() else {
             return BotResponse::error("Request ID must be a number.");
         };
-
-        match resolve_request(&self.pool, id, "denied").await {
-            Ok(user_id) => BotResponse::text(format!(
-                "Request #{id} denied. User `{user_id}` will not be admitted."
-            )),
-            Err(e) => BotResponse::error(e),
+        match self.db.resolve_join_request(id, "denied", None).await {
+            Ok(_) => BotResponse::text(format!("Request #{id} denied.")),
+            Err(e) => BotResponse::error(format!("{e}")),
         }
     }
-}
-
-// ── helpers ───────────────────────────────────────────────────────────────────
-
-async fn resolve_request(pool: &SqlitePool, id: i64, status: &str) -> Result<String, String> {
-    let row = sqlx::query(
-        "SELECT user_id, status FROM join_requests WHERE id = ?",
-    )
-    .bind(id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|e| format!("DB error: {e}"))?;
-
-    let Some(row) = row else {
-        return Err(format!("Request #{id} not found."));
-    };
-
-    let current: String = row.get(1);
-    if current != "pending" {
-        return Err(format!("Request #{id} is already '{current}' — cannot change."));
-    }
-
-    let user_id: String = row.get(0);
-
-    sqlx::query(
-        "UPDATE join_requests SET status = ?, resolved_at = ? WHERE id = ?",
-    )
-    .bind(status)
-    .bind(Utc::now().to_rfc3339())
-    .bind(id)
-    .execute(pool)
-    .await
-    .map_err(|e| format!("DB error: {e}"))?;
-
-    Ok(user_id)
 }

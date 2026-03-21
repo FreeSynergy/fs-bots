@@ -1,5 +1,5 @@
 [package]
-name        = "fsn-bots"
+name        = "fs-bots"
 description = "Bot runtime — polls messengers, dispatches commands, runs trigger engine"
 version     = "0.1.0"
 edition     = "2021"
@@ -7,22 +7,24 @@ license     = "MIT"
 authors     = ["FreeSynergy.Net"]
 
 [[bin]]
-name = "fsn-bot-runtime"
+name = "fs-bot-runtime"
 path = "src/main.rs"
 
 [dependencies]
 # FreeSynergy Lib
-fsn-channel  = { path = "../../FreeSynergy.Lib/fsn-channel", features = ["all"] }
-fsn-bot      = { path = "../../FreeSynergy.Lib/fsn-bot" }
-fsn-types    = { path = "../../FreeSynergy.Lib/fsn-types" }
+fs-channel  = { path = "../../fs-libs/fs-channel", features = ["matrix", "telegram"] }
+fs-bot      = { path = "../../fs-libs/fs-bot" }
+fs-types    = { path = "../../fs-libs/fs-types" }
+fs-db       = { path = "../../fs-libs/fs-db", features = ["sqlite"] }
 
 # Bot modules (N5-N10)
 bot-broadcast  = { path = "../bot-broadcast" }
 bot-gatekeeper = { path = "../bot-gatekeeper" }
 bot-calendar   = { path = "../bot-calendar" }
 bot-control    = { path = "../bot-control" }
+bot-db         = { path = "../bot-db" }
 bot-room-sync  = { path = "../bot-room-sync" }
-# fsn-inventory pulls in sea-orm/sqlx-sqlite which conflicts with rusqlite.
+# fs-inventory pulls in sea-orm/sqlx-sqlite which conflicts with rusqlite.
 # The runtime resolves inventory data via the FSN HTTP API (Phase P).
 
 # Async
@@ -34,8 +36,7 @@ serde        = { version = "1", features = ["derive"] }
 serde_json   = "1"
 toml         = "0.8"
 
-# Database — use sqlx (same as sea-orm in fsn-inventory to avoid libsqlite3-sys conflict)
-sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls", "chrono", "migrate"] }
+# Database — via fs-db (SeaORM). No direct sqlx dependency.
 
 # HTTP (webhook server)
 axum         = { version = "0.7", features = ["tokio"] }
