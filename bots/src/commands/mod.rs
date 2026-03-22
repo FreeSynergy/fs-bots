@@ -3,7 +3,7 @@
 // Module-specific commands (broadcast, gatekeeper, calendar, …) are loaded
 // dynamically as Store packages in N5+ phases.
 
-use fsn_bot::CommandRegistry;
+use fs_bot::CommandRegistry;
 
 mod ping;
 mod status;

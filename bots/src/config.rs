@@ -1,7 +1,7 @@
 // Bot instance configuration — loaded from TOML at startup.
 
-use fsn_channel::types::AdapterConfig;
-use fsn_types::resources::MessengerKind;
+use fs_channel::types::AdapterConfig;
+use fs_types::resources::MessengerKind;
 use serde::{Deserialize, Serialize};
 
 // ── BotInstanceConfig ─────────────────────────────────────────────────────────
@@ -20,13 +20,13 @@ pub struct BotInstanceConfig {
     /// Messenger connections this instance maintains.
     pub messengers: Vec<MessengerConfig>,
     /// FSN control level for incoming commands.
-    pub fsn_level: FsnLevel,
+    pub fs_level: FsLevel,
 }
 
 /// Control access level for incoming commands.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
-pub enum FsnLevel {
+pub enum FsLevel {
     /// Anyone can trigger commands (unauthenticated OK).
     Public,
     /// Only FSN members can trigger commands.

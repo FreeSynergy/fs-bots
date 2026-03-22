@@ -11,8 +11,8 @@ use axum::Router;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::post;
-use fsn_channel::{IncomingMessage, RoomId, UserId};
-use fsn_types::resources::MessengerKind;
+use fs_channel::{IncomingMessage, RoomId, UserId};
+use fs_types::resources::MessengerKind;
 use tokio::sync::broadcast;
 
 // ── WebhookState ──────────────────────────────────────────────────────────────

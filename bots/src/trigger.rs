@@ -1,13 +1,13 @@
 // TriggerEngine — dispatches Bus events to registered TriggerHandlers.
 //
-// TriggerHandler, TriggerEvent, and TriggerAction are defined in fsn-bot.
+// TriggerHandler, TriggerEvent, and TriggerAction are defined in fs-bot.
 // This module holds the runtime engine that collects and relays actions.
 
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use tracing::warn;
 
-pub use fsn_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
+pub use fs_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
 
 use crate::audit::AuditLog;
 

@@ -1,7 +1,7 @@
 // Calendar commands: /termine
 
 use async_trait::async_trait;
-use fsn_bot::{BotCommand, BotResponse, CommandContext, CommandRegistry, Right};
+use fs_bot::{BotCommand, BotResponse, CommandContext, CommandRegistry, Right};
 
 pub fn register_all(registry: &mut CommandRegistry) {
     registry.register(TermineCommand);

@@ -3,8 +3,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use fsn_channel::{BotChannel, ChannelRegistry, RoomId, UserId};
-use fsn_types::resources::MessengerKind;
+use fs_channel::{BotChannel, ChannelRegistry, RoomId, UserId};
+use fs_types::resources::MessengerKind;
 use tokio::sync::{broadcast, mpsc};
 use tokio::time::sleep;
 use tracing::{error, info, warn};
@@ -54,10 +54,10 @@ impl BotRuntime {
         info!("Bot '{}' starting (id={})", self.config.name, self.config.instance_id);
 
         let (webhook_tx, _) =
-            broadcast::channel::<(MessengerKind, fsn_channel::IncomingMessage)>(WEBHOOK_CHANNEL_CAP);
+            broadcast::channel::<(MessengerKind, fs_channel::IncomingMessage)>(WEBHOOK_CHANNEL_CAP);
         let webhook_state = WebhookState { tx: webhook_tx.clone() };
 
-        let webhook_port: u16 = std::env::var("FSN_BOT_WEBHOOK_PORT")
+        let webhook_port: u16 = std::env::var("FS_BOT_WEBHOOK_PORT")
             .ok()
             .and_then(|s| s.parse().ok())
             .unwrap_or(9090);

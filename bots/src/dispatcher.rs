@@ -9,11 +9,11 @@
 
 use std::sync::Arc;
 
-use fsn_bot::{CommandContext, CommandRegistry};
-use fsn_bot::response::BotResponse;
-use fsn_bot::rights::Right;
-use fsn_channel::{BotChannel, IncomingMessage, MessageFormat, RoomId};
-use fsn_types::resources::MessengerKind;
+use fs_bot::{CommandContext, CommandRegistry};
+use fs_bot::response::BotResponse;
+use fs_bot::rights::Right;
+use fs_channel::{BotChannel, IncomingMessage, MessageFormat, RoomId};
+use fs_types::resources::MessengerKind;
 
 use crate::audit::AuditLog;
 
@@ -53,7 +53,7 @@ impl CommandDispatcher {
         let ctx = CommandContext {
             command: cmd_name.clone(),
             args: msg.command_args.clone(),
-            fsn_user_id: None,
+            fs_user_id: None,
             caller_right,
             platform,
             extra: serde_json::Value::Null,

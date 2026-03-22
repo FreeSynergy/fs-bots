@@ -1,7 +1,7 @@
 // CalendarHandler — forwards calendar.event.* Bus events to rooms as reminders.
 
 use async_trait::async_trait;
-use fsn_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
+use fs_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
 use tracing::warn;
 
 /// Listens on `calendar.event.*` and sends event reminders.

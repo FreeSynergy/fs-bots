@@ -3,7 +3,7 @@
 // Commands: /termine
 // Trigger:  CalendarHandler listens on "calendar.event.*" and sends reminders.
 
-use fsn_bot::{CommandRegistry, TriggerHandler};
+use fs_bot::{CommandRegistry, TriggerHandler};
 
 mod commands;
 mod trigger;

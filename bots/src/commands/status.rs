@@ -1,8 +1,8 @@
 // /status — shows the bot's connected messengers and their feature support.
 
 use async_trait::async_trait;
-use fsn_bot::{BotCommand, BotResponse, CommandContext};
-use fsn_bot::rights::Right;
+use fs_bot::{BotCommand, BotResponse, CommandContext};
+use fs_bot::rights::Right;
 
 pub struct StatusCommand;
 
