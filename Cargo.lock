@@ -1010,19 +1010,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "fs-auth"
-version = "0.1.0"
-dependencies = [
- "fs-error",
- "serde",
-]
-
-[[package]]
 name = "fs-bot"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "fs-auth",
  "fs-bus",
  "fs-channel",
  "serde_json",

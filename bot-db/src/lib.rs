@@ -47,26 +47,16 @@ impl BotDb {
 
     // ── Audit ─────────────────────────────────────────────────────────────────
 
-    pub async fn audit(
-        &self,
-        actor_type: &str,
-        actor_id: &str,
-        platform: Option<&str>,
-        room_id: Option<&str>,
-        action: &str,
-        target: Option<&str>,
-        result: &str,
-        detail: Option<&str>,
-    ) -> Result<()> {
+    pub async fn audit(&self, entry: AuditEntry<'_>) -> Result<()> {
         audit_log::ActiveModel {
-            actor_type: Set(actor_type.to_string()),
-            actor_id: Set(actor_id.to_string()),
-            platform: Set(platform.map(str::to_string)),
-            room_id: Set(room_id.map(str::to_string)),
-            action: Set(action.to_string()),
-            target: Set(target.map(str::to_string)),
-            result: Set(result.to_string()),
-            detail: Set(detail.map(str::to_string)),
+            actor_type: Set(entry.actor_type.to_string()),
+            actor_id: Set(entry.actor_id.to_string()),
+            platform: Set(entry.platform.map(str::to_string)),
+            room_id: Set(entry.room_id.map(str::to_string)),
+            action: Set(entry.action.to_string()),
+            target: Set(entry.target.map(str::to_string)),
+            result: Set(entry.result.to_string()),
+            detail: Set(entry.detail.map(str::to_string)),
             created_at: Set(Utc::now().to_rfc3339()),
             ..Default::default()
         }
@@ -570,6 +560,19 @@ impl From<sync_rule::Model> for SyncRule {
             sync_members: m.sync_members != 0,
         }
     }
+}
+
+/// All fields needed for one audit log entry.
+#[derive(Debug, Clone)]
+pub struct AuditEntry<'a> {
+    pub actor_type: &'a str,
+    pub actor_id: &'a str,
+    pub platform: Option<&'a str>,
+    pub room_id: Option<&'a str>,
+    pub action: &'a str,
+    pub target: Option<&'a str>,
+    pub result: &'a str,
+    pub detail: Option<&'a str>,
 }
 
 /// Filter criteria for room queries — all fields optional, AND-combined.
