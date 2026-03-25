@@ -10,7 +10,6 @@ authors     = ["FreeSynergy.Net"]
 fs-bot  = { path = "../../fs-libs/fs-bot" }
 bot-db  = { path = "../bot-db" }
 
-tokio       = { version = "1", features = ["full"] }
 async-trait = "0.1"
 serde_json  = "1"
 tracing     = "0.1"

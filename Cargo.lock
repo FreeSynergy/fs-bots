@@ -344,7 +344,6 @@ dependencies = [
  "bot-db",
  "fs-bot",
  "serde_json",
- "tokio",
  "tracing",
 ]
 
@@ -363,11 +362,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bot-db",
- "chrono",
  "fs-bot",
- "fs-types",
- "serde_json",
- "tokio",
  "tracing",
 ]
 
@@ -387,11 +382,7 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "bot-db",
- "chrono",
  "fs-bot",
- "fs-types",
- "serde_json",
- "tokio",
  "tracing",
 ]
 
@@ -403,7 +394,6 @@ dependencies = [
  "bot-db",
  "fs-bot",
  "serde_json",
- "tokio",
  "tracing",
 ]
 
@@ -1054,19 +1044,14 @@ dependencies = [
  "bot-db",
  "bot-gatekeeper",
  "bot-room-sync",
- "chrono",
  "fs-bot",
  "fs-channel",
- "fs-db",
- "fs-types",
  "serde",
  "serde_json",
- "thiserror 2.0.18",
  "tokio",
  "toml 0.8.23",
  "tracing",
  "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
@@ -3095,9 +3080,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.9"
+version = "0.103.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7df23109aa6c1567d1c575b9952556388da57401e4ace1d15f79eedad0d8f53"
+checksum = "df33b2b81ac578cabaf06b89b0631153a3f416b0a886e8a7a1707fb51abbd1ef"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -3635,7 +3620,6 @@ dependencies = [
  "cfg-if",
  "libc",
  "psm",
- "windows-sys 0.52.0",
  "windows-sys 0.59.0",
 ]
 

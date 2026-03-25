@@ -17,6 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout fs-libs
+        run: git clone --depth=1 "https://x-access-token:${{ secrets.FS_LIBS_TOKEN }}@github.com/FreeSynergy/fs-libs.git" "${{ github.workspace }}/../fs-libs"
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -51,7 +54,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: EmbarkStudios/cargo-deny-action@v2
+      - name: Checkout fs-libs
+        run: git clone --depth=1 "https://x-access-token:${{ secrets.FS_LIBS_TOKEN }}@github.com/FreeSynergy/fs-libs.git" "${{ github.workspace }}/../fs-libs"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - name: cargo-deny check
+        run: cargo deny check --all-features
 
   machete:
     name: Unused dependencies

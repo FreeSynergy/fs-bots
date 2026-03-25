@@ -14,8 +14,6 @@ path = "src/main.rs"
 # FreeSynergy Lib
 fs-channel  = { path = "../../fs-libs/fs-channel", features = ["matrix", "telegram"] }
 fs-bot      = { path = "../../fs-libs/fs-bot" }
-fs-types    = { path = "../../fs-libs/fs-types" }
-fs-db       = { path = "../../fs-libs/fs-db", features = ["sqlite"] }
 
 # Bot modules (N5-N10)
 bot-broadcast  = { path = "../bot-broadcast" }
@@ -43,12 +41,7 @@ axum         = { version = "0.7", features = ["tokio"] }
 
 # Error handling
 anyhow       = "1"
-thiserror    = "2"
 
 # Logging
 tracing           = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-
-# Utilities
-uuid    = { version = "1", features = ["v4"] }
-chrono  = { version = "0.4", features = ["serde"] }
