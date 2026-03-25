@@ -1,9 +1,9 @@
 // GatekeeperHandler — queues chat.join_request events and notifies admins.
 
-use std::sync::Arc;
 use async_trait::async_trait;
 use bot_db::BotDb;
 use fs_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
+use std::sync::Arc;
 use tracing::warn;
 
 /// Listens on `chat.join_request` events.
@@ -31,9 +31,9 @@ impl TriggerHandler for GatekeeperHandler {
     async fn on_event(&self, event: TriggerEvent) -> Vec<TriggerAction> {
         let payload = &event.payload;
 
-        let platform  = payload["platform"].as_str().unwrap_or("").to_owned();
-        let room_id   = payload["room_id"].as_str().unwrap_or("").to_owned();
-        let user_id   = payload["user_id"].as_str().unwrap_or("").to_owned();
+        let platform = payload["platform"].as_str().unwrap_or("").to_owned();
+        let room_id = payload["room_id"].as_str().unwrap_or("").to_owned();
+        let user_id = payload["user_id"].as_str().unwrap_or("").to_owned();
         let user_name = payload["user_name"].as_str().unwrap_or(&user_id).to_owned();
 
         if platform.is_empty() || room_id.is_empty() || user_id.is_empty() {
@@ -41,7 +41,11 @@ impl TriggerHandler for GatekeeperHandler {
             return vec![];
         }
 
-        let request_id = match self.db.add_join_request(&platform, &room_id, &user_id).await {
+        let request_id = match self
+            .db
+            .add_join_request(&platform, &room_id, &user_id)
+            .await
+        {
             Ok(id) => id,
             Err(e) => {
                 warn!("GatekeeperHandler DB error: {e}");
@@ -54,6 +58,10 @@ impl TriggerHandler for GatekeeperHandler {
              Use /approve {request_id} or /deny {request_id}."
         );
 
-        vec![TriggerAction::SendToRoom { platform, room_id, text }]
+        vec![TriggerAction::SendToRoom {
+            platform,
+            room_id,
+            text,
+        }]
     }
 }

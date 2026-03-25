@@ -4,10 +4,10 @@ use sea_orm::entity::prelude::*;
 #[sea_orm(table_name = "sync_messages")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub id:           i64,
-    pub rule_id:      i64,
-    pub direction:    String,
-    pub msg_id_src:   String,
+    pub id: i64,
+    pub rule_id: i64,
+    pub direction: String,
+    pub msg_id_src: String,
     pub forwarded_at: String,
 }
 
@@ -16,7 +16,7 @@ pub enum Relation {
     #[sea_orm(
         belongs_to = "super::sync_rule::Entity",
         from = "Column::RuleId",
-        to   = "super::sync_rule::Column::Id",
+        to = "super::sync_rule::Column::Id",
         on_delete = "Cascade"
     )]
     Rule,

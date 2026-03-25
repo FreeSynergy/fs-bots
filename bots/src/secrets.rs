@@ -40,11 +40,12 @@ pub fn resolve(reference: &str) -> Result<String> {
 ///
 /// `pairs` is a slice of `(name, reference)` tuples.
 /// Returns `Err` immediately if any secret cannot be resolved.
-pub fn resolve_map<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>) -> Result<std::collections::HashMap<String, String>> {
+pub fn resolve_map<'a>(
+    pairs: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> Result<std::collections::HashMap<String, String>> {
     let mut map = std::collections::HashMap::new();
     for (name, reference) in pairs {
-        let value = resolve(reference)
-            .map_err(|e| anyhow::anyhow!("Secret '{}': {}", name, e))?;
+        let value = resolve(reference).map_err(|e| anyhow::anyhow!("Secret '{}': {}", name, e))?;
         map.insert(name.to_owned(), value);
     }
     Ok(map)

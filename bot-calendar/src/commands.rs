@@ -14,9 +14,15 @@ pub struct TermineCommand;
 
 #[async_trait]
 impl BotCommand for TermineCommand {
-    fn name(&self) -> &str { "termine" }
-    fn description(&self) -> &str { "Show upcoming calendar events" }
-    fn required_right(&self) -> Right { Right::Member }
+    fn name(&self) -> &str {
+        "termine"
+    }
+    fn description(&self) -> &str {
+        "Show upcoming calendar events"
+    }
+    fn required_right(&self) -> Right {
+        Right::Member
+    }
 
     async fn execute(&self, _ctx: CommandContext) -> BotResponse {
         // TODO Phase E: query calendar.event.list via Bus → Desktop-Calendar service

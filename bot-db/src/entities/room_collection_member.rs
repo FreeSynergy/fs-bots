@@ -6,9 +6,9 @@ pub struct Model {
     #[sea_orm(primary_key)]
     pub collection_id: i64,
     #[sea_orm(primary_key)]
-    pub platform:      String,
+    pub platform: String,
     #[sea_orm(primary_key)]
-    pub room_id:       String,
+    pub room_id: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

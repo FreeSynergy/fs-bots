@@ -4,10 +4,10 @@ use sea_orm::entity::prelude::*;
 #[sea_orm(table_name = "room_collections")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub id:          i64,
-    pub name:        String,
+    pub id: i64,
+    pub name: String,
     pub description: Option<String>,
-    pub created_at:  String,
+    pub created_at: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

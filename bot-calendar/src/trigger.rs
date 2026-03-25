@@ -31,8 +31,8 @@ impl TriggerHandler for CalendarHandler {
     async fn on_event(&self, event: TriggerEvent) -> Vec<TriggerAction> {
         let payload = &event.payload;
 
-        let title    = payload["title"].as_str().unwrap_or("Unnamed event");
-        let time     = payload["time"].as_str().unwrap_or("(time unknown)");
+        let title = payload["title"].as_str().unwrap_or("Unnamed event");
+        let time = payload["time"].as_str().unwrap_or("(time unknown)");
         let location = payload["location"].as_str();
 
         let text = if let Some(loc) = location {
@@ -47,7 +47,7 @@ impl TriggerHandler for CalendarHandler {
         if let Some(rooms) = payload["rooms"].as_array() {
             for room in rooms {
                 let platform = room["platform"].as_str().unwrap_or("").to_owned();
-                let room_id  = room["room_id"].as_str().unwrap_or("").to_owned();
+                let room_id = room["room_id"].as_str().unwrap_or("").to_owned();
                 if platform.is_empty() || room_id.is_empty() {
                     warn!("CalendarHandler: malformed room entry: {:?}", room);
                     continue;
@@ -65,7 +65,7 @@ impl TriggerHandler for CalendarHandler {
             let dm_text = format!("{text}\nThis event includes you.");
             for p in participants {
                 let platform = p["platform"].as_str().unwrap_or("").to_owned();
-                let user_id  = p["user_id"].as_str().unwrap_or("").to_owned();
+                let user_id = p["user_id"].as_str().unwrap_or("").to_owned();
                 if platform.is_empty() || user_id.is_empty() {
                     continue;
                 }

@@ -9,9 +9,9 @@
 
 use std::sync::Arc;
 
-use fs_bot::{CommandContext, CommandRegistry};
 use fs_bot::response::BotResponse;
 use fs_bot::rights::Right;
+use fs_bot::{CommandContext, CommandRegistry};
 use fs_channel::{BotChannel, IncomingMessage, MessageFormat, RoomId};
 use fs_types::resources::MessengerKind;
 
@@ -71,15 +71,17 @@ impl CommandDispatcher {
             _ => "ok",
         };
 
-        self.audit.user_action(
-            msg.sender.as_str(),
-            platform.label(),
-            msg.room.as_str(),
-            &format!("command.{}", cmd_name),
-            None,
-            result_label,
-            None,
-        ).await;
+        self.audit
+            .user_action(
+                msg.sender.as_str(),
+                platform.label(),
+                msg.room.as_str(),
+                &format!("command.{}", cmd_name),
+                None,
+                result_label,
+                None,
+            )
+            .await;
 
         send_response(response, &msg.room, channel).await;
     }
@@ -98,7 +100,11 @@ async fn send_response(response: BotResponse, default_room: &RoomId, channel: &d
                 tracing::error!("send_response failed: {}", e);
             }
         }
-        BotResponse::Menu { room, text, buttons } => {
+        BotResponse::Menu {
+            room,
+            text,
+            buttons,
+        } => {
             let target = room.as_ref().unwrap_or(default_room);
             if let Err(e) = channel.send_menu(target, &text, &buttons).await {
                 tracing::error!("send_menu failed: {}", e);

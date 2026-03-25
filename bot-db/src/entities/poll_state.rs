@@ -4,9 +4,9 @@ use sea_orm::entity::prelude::*;
 #[sea_orm(table_name = "poll_state")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub platform:    String,
+    pub platform: String,
     #[sea_orm(primary_key)]
-    pub room_id:     String,
+    pub room_id: String,
     pub last_offset: i64,
 }
 

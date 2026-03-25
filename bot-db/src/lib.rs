@@ -7,20 +7,19 @@
 // (SQLite, Postgres, …) is configured in fs-db — nothing here depends on it.
 // To switch databases, only fs-db changes.
 
+use anyhow::Result;
 use chrono::Utc;
+use fs_db::sea_orm::sea_query::Expr;
 use fs_db::sea_orm::{
     ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, ConnectionTrait,
-    DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Order, QuerySelect,
+    DatabaseConnection, EntityTrait, Order, QueryFilter, QueryOrder, QuerySelect,
 };
-use fs_db::sea_orm::sea_query::Expr;
-use anyhow::Result;
 
 pub mod entities;
 
 use crate::entities::{
-    audit_log, bot_meta, child_bot, join_request, known_room,
-    poll_state, room_collection, room_collection_member, subscription,
-    sync_message, sync_rule,
+    audit_log, bot_meta, child_bot, join_request, known_room, poll_state, room_collection,
+    room_collection_member, subscription, sync_message, sync_rule,
 };
 
 const SCHEMA: &str = include_str!("../migrations/schema.sql");
@@ -61,13 +60,13 @@ impl BotDb {
     ) -> Result<()> {
         audit_log::ActiveModel {
             actor_type: Set(actor_type.to_string()),
-            actor_id:   Set(actor_id.to_string()),
-            platform:   Set(platform.map(str::to_string)),
-            room_id:    Set(room_id.map(str::to_string)),
-            action:     Set(action.to_string()),
-            target:     Set(target.map(str::to_string)),
-            result:     Set(result.to_string()),
-            detail:     Set(detail.map(str::to_string)),
+            actor_id: Set(actor_id.to_string()),
+            platform: Set(platform.map(str::to_string)),
+            room_id: Set(room_id.map(str::to_string)),
+            action: Set(action.to_string()),
+            target: Set(target.map(str::to_string)),
+            result: Set(result.to_string()),
+            detail: Set(detail.map(str::to_string)),
             created_at: Set(Utc::now().to_rfc3339()),
             ..Default::default()
         }
@@ -96,8 +95,8 @@ impl BotDb {
     pub async fn set_offset(&self, platform: &str, room_id: &str, offset: u64) -> Result<()> {
         use fs_db::sea_orm::sea_query::OnConflict;
         let model = poll_state::ActiveModel {
-            platform:    Set(platform.to_string()),
-            room_id:     Set(room_id.to_string()),
+            platform: Set(platform.to_string()),
+            room_id: Set(room_id.to_string()),
             last_offset: Set(offset as i64),
         };
         poll_state::Entity::insert(model)
@@ -122,11 +121,11 @@ impl BotDb {
     ) -> Result<()> {
         use fs_db::sea_orm::sea_query::OnConflict;
         let model = known_room::ActiveModel {
-            platform:     Set(platform.to_string()),
-            room_id:      Set(room_id.to_string()),
-            room_name:    Set(room_name.map(str::to_string)),
+            platform: Set(platform.to_string()),
+            room_id: Set(room_id.to_string()),
+            room_name: Set(room_name.map(str::to_string)),
             member_count: Set(member_count),
-            last_seen:    Set(Utc::now().to_rfc3339()),
+            last_seen: Set(Utc::now().to_rfc3339()),
             ..Default::default()
         };
         known_room::Entity::insert(model)
@@ -158,7 +157,10 @@ impl BotDb {
         if let Some(max) = filter.max_members {
             query = query.filter(known_room::Column::MemberCount.lte(max));
         }
-        Ok(query.order_by_asc(known_room::Column::RoomName).all(&self.conn).await?)
+        Ok(query
+            .order_by_asc(known_room::Column::RoomName)
+            .all(&self.conn)
+            .await?)
     }
 
     // ── Subscriptions ─────────────────────────────────────────────────────────
@@ -166,9 +168,9 @@ impl BotDb {
     pub async fn subscribe(&self, platform: &str, room_id: &str, topic: &str) -> Result<()> {
         use fs_db::sea_orm::sea_query::OnConflict;
         let model = subscription::ActiveModel {
-            platform:   Set(platform.to_string()),
-            room_id:    Set(room_id.to_string()),
-            topic:      Set(topic.to_string()),
+            platform: Set(platform.to_string()),
+            room_id: Set(room_id.to_string()),
+            topic: Set(topic.to_string()),
             created_at: Set(Utc::now().to_rfc3339()),
             ..Default::default()
         };
@@ -189,7 +191,11 @@ impl BotDb {
         Ok(())
     }
 
-    pub async fn subscriptions_for_room(&self, platform: &str, room_id: &str) -> Result<Vec<String>> {
+    pub async fn subscriptions_for_room(
+        &self,
+        platform: &str,
+        room_id: &str,
+    ) -> Result<Vec<String>> {
         Ok(subscription::Entity::find()
             .filter(subscription::Column::Platform.eq(platform))
             .filter(subscription::Column::RoomId.eq(room_id))
@@ -201,7 +207,10 @@ impl BotDb {
     }
 
     /// All (platform, room_id) pairs subscribed to the given topic.
-    pub async fn subscriptions_for_room_by_topic(&self, topic: &str) -> Result<Vec<(String, String)>> {
+    pub async fn subscriptions_for_room_by_topic(
+        &self,
+        topic: &str,
+    ) -> Result<Vec<(String, String)>> {
         Ok(subscription::Entity::find()
             .filter(subscription::Column::Topic.eq(topic))
             .all(&self.conn)
@@ -215,9 +224,9 @@ impl BotDb {
 
     pub async fn create_collection(&self, name: &str, description: Option<&str>) -> Result<i64> {
         let result = room_collection::ActiveModel {
-            name:        Set(name.to_string()),
+            name: Set(name.to_string()),
             description: Set(description.map(str::to_string)),
-            created_at:  Set(Utc::now().to_rfc3339()),
+            created_at: Set(Utc::now().to_rfc3339()),
             ..Default::default()
         }
         .insert(&self.conn)
@@ -226,7 +235,9 @@ impl BotDb {
     }
 
     pub async fn delete_collection(&self, id: i64) -> Result<()> {
-        room_collection::Entity::delete_by_id(id).exec(&self.conn).await?;
+        room_collection::Entity::delete_by_id(id)
+            .exec(&self.conn)
+            .await?;
         Ok(())
     }
 
@@ -237,12 +248,17 @@ impl BotDb {
             .await?)
     }
 
-    pub async fn add_to_collection(&self, collection_id: i64, platform: &str, room_id: &str) -> Result<()> {
+    pub async fn add_to_collection(
+        &self,
+        collection_id: i64,
+        platform: &str,
+        room_id: &str,
+    ) -> Result<()> {
         use fs_db::sea_orm::sea_query::OnConflict;
         room_collection_member::Entity::insert(room_collection_member::ActiveModel {
             collection_id: Set(collection_id),
-            platform:      Set(platform.to_string()),
-            room_id:       Set(room_id.to_string()),
+            platform: Set(platform.to_string()),
+            room_id: Set(room_id.to_string()),
         })
         .on_conflict(OnConflict::new().do_nothing().to_owned())
         .exec(&self.conn)
@@ -250,7 +266,12 @@ impl BotDb {
         Ok(())
     }
 
-    pub async fn remove_from_collection(&self, collection_id: i64, platform: &str, room_id: &str) -> Result<()> {
+    pub async fn remove_from_collection(
+        &self,
+        collection_id: i64,
+        platform: &str,
+        room_id: &str,
+    ) -> Result<()> {
         room_collection_member::Entity::delete_many()
             .filter(room_collection_member::Column::CollectionId.eq(collection_id))
             .filter(room_collection_member::Column::Platform.eq(platform))
@@ -260,7 +281,10 @@ impl BotDb {
         Ok(())
     }
 
-    pub async fn rooms_in_collection(&self, collection_id: i64) -> Result<Vec<room_collection_member::Model>> {
+    pub async fn rooms_in_collection(
+        &self,
+        collection_id: i64,
+    ) -> Result<Vec<room_collection_member::Model>> {
         Ok(room_collection_member::Entity::find()
             .filter(room_collection_member::Column::CollectionId.eq(collection_id))
             .all(&self.conn)
@@ -269,12 +293,17 @@ impl BotDb {
 
     // ── Join requests ─────────────────────────────────────────────────────────
 
-    pub async fn add_join_request(&self, platform: &str, room_id: &str, user_id: &str) -> Result<i64> {
+    pub async fn add_join_request(
+        &self,
+        platform: &str,
+        room_id: &str,
+        user_id: &str,
+    ) -> Result<i64> {
         let result = join_request::ActiveModel {
-            platform:   Set(platform.to_string()),
-            room_id:    Set(room_id.to_string()),
-            user_id:    Set(user_id.to_string()),
-            status:     Set("pending".to_string()),
+            platform: Set(platform.to_string()),
+            room_id: Set(room_id.to_string()),
+            user_id: Set(user_id.to_string()),
+            status: Set("pending".to_string()),
             created_at: Set(Utc::now().to_rfc3339()),
             ..Default::default()
         }
@@ -287,7 +316,11 @@ impl BotDb {
         Ok(join_request::Entity::find_by_id(id).one(&self.conn).await?)
     }
 
-    pub async fn list_pending_join_requests(&self, platform: &str, room_id: &str) -> Result<Vec<join_request::Model>> {
+    pub async fn list_pending_join_requests(
+        &self,
+        platform: &str,
+        room_id: &str,
+    ) -> Result<Vec<join_request::Model>> {
         Ok(join_request::Entity::find()
             .filter(join_request::Column::Platform.eq(platform))
             .filter(join_request::Column::RoomId.eq(room_id))
@@ -297,7 +330,12 @@ impl BotDb {
             .await?)
     }
 
-    pub async fn resolve_join_request(&self, id: i64, status: &str, iam_result: Option<&str>) -> Result<()> {
+    pub async fn resolve_join_request(
+        &self,
+        id: i64,
+        status: &str,
+        iam_result: Option<&str>,
+    ) -> Result<()> {
         let mut model: join_request::ActiveModel = join_request::Entity::find_by_id(id)
             .one(&self.conn)
             .await?
@@ -315,9 +353,9 @@ impl BotDb {
     pub async fn add_child_bot(&self, name: &str, bot_type: &str, data_dir: &str) -> Result<()> {
         use fs_db::sea_orm::sea_query::OnConflict;
         child_bot::Entity::insert(child_bot::ActiveModel {
-            name:       Set(name.to_string()),
-            bot_type:   Set(bot_type.to_string()),
-            data_dir:   Set(data_dir.to_string()),
+            name: Set(name.to_string()),
+            bot_type: Set(bot_type.to_string()),
+            data_dir: Set(data_dir.to_string()),
             created_at: Set(Utc::now().to_rfc3339()),
             ..Default::default()
         })
@@ -334,7 +372,12 @@ impl BotDb {
             .await?)
     }
 
-    pub async fn set_child_bot_status(&self, name: &str, status: &str, pid: Option<i64>) -> Result<()> {
+    pub async fn set_child_bot_status(
+        &self,
+        name: &str,
+        status: &str,
+        pid: Option<i64>,
+    ) -> Result<()> {
         let mut model: child_bot::ActiveModel = child_bot::Entity::find()
             .filter(child_bot::Column::Name.eq(name))
             .one(&self.conn)
@@ -359,7 +402,7 @@ impl BotDb {
     pub async fn set_meta(&self, key: &str, value: &str) -> Result<()> {
         use fs_db::sea_orm::sea_query::OnConflict;
         bot_meta::Entity::insert(bot_meta::ActiveModel {
-            key:   Set(key.to_string()),
+            key: Set(key.to_string()),
             value: Set(value.to_string()),
         })
         .on_conflict(
@@ -378,22 +421,22 @@ impl BotDb {
     pub async fn create_rule(
         &self,
         src_platform: &str,
-        src_room:     &str,
+        src_room: &str,
         tgt_platform: &str,
-        tgt_room:     &str,
-        direction:    &str,
+        tgt_room: &str,
+        direction: &str,
         sync_members: bool,
     ) -> Result<i64> {
         use fs_db::sea_orm::sea_query::OnConflict;
         sync_rule::Entity::insert(sync_rule::ActiveModel {
             source_platform: Set(src_platform.to_string()),
-            source_room:     Set(src_room.to_string()),
+            source_room: Set(src_room.to_string()),
             target_platform: Set(tgt_platform.to_string()),
-            target_room:     Set(tgt_room.to_string()),
-            direction:       Set(direction.to_string()),
-            sync_members:    Set(sync_members as i64),
-            enabled:         Set(1),
-            created_at:      Set(Utc::now().to_rfc3339()),
+            target_room: Set(tgt_room.to_string()),
+            direction: Set(direction.to_string()),
+            sync_members: Set(sync_members as i64),
+            enabled: Set(1),
+            created_at: Set(Utc::now().to_rfc3339()),
             ..Default::default()
         })
         .on_conflict(
@@ -423,9 +466,9 @@ impl BotDb {
     pub async fn disable_rule(
         &self,
         src_platform: &str,
-        src_room:     &str,
+        src_room: &str,
         tgt_platform: &str,
-        tgt_room:     &str,
+        tgt_room: &str,
     ) -> Result<bool> {
         let res = sync_rule::Entity::update_many()
             .col_expr(sync_rule::Column::Enabled, Expr::value(0i64))
@@ -471,7 +514,12 @@ impl BotDb {
     }
 
     /// Record a forwarded message for deduplication. Returns false if already forwarded.
-    pub async fn record_forward(&self, rule_id: i64, direction: &str, msg_id_src: &str) -> Result<bool> {
+    pub async fn record_forward(
+        &self,
+        rule_id: i64,
+        direction: &str,
+        msg_id_src: &str,
+    ) -> Result<bool> {
         let exists = sync_message::Entity::find()
             .filter(sync_message::Column::RuleId.eq(rule_id))
             .filter(sync_message::Column::Direction.eq(direction))
@@ -479,11 +527,13 @@ impl BotDb {
             .one(&self.conn)
             .await?
             .is_some();
-        if exists { return Ok(false); }
+        if exists {
+            return Ok(false);
+        }
         sync_message::ActiveModel {
-            rule_id:      Set(rule_id),
-            direction:    Set(direction.to_string()),
-            msg_id_src:   Set(msg_id_src.to_string()),
+            rule_id: Set(rule_id),
+            direction: Set(direction.to_string()),
+            msg_id_src: Set(msg_id_src.to_string()),
             forwarded_at: Set(Utc::now().to_rfc3339()),
             ..Default::default()
         }
@@ -498,26 +548,26 @@ impl BotDb {
 /// A resolved sync rule (domain type, not raw entity model).
 #[derive(Debug, Clone)]
 pub struct SyncRule {
-    pub id:              i64,
+    pub id: i64,
     pub source_platform: String,
-    pub source_room:     String,
+    pub source_room: String,
     pub target_platform: String,
-    pub target_room:     String,
+    pub target_room: String,
     /// "both" | "to_target" | "to_source"
-    pub direction:       String,
-    pub sync_members:    bool,
+    pub direction: String,
+    pub sync_members: bool,
 }
 
 impl From<sync_rule::Model> for SyncRule {
     fn from(m: sync_rule::Model) -> Self {
         Self {
-            id:              m.id,
+            id: m.id,
             source_platform: m.source_platform,
-            source_room:     m.source_room,
+            source_room: m.source_room,
             target_platform: m.target_platform,
-            target_room:     m.target_room,
-            direction:       m.direction,
-            sync_members:    m.sync_members != 0,
+            target_room: m.target_room,
+            direction: m.direction,
+            sync_members: m.sync_members != 0,
         }
     }
 }
@@ -525,8 +575,8 @@ impl From<sync_rule::Model> for SyncRule {
 /// Filter criteria for room queries — all fields optional, AND-combined.
 #[derive(Debug, Default, Clone)]
 pub struct GroupFilter {
-    pub platform:      Option<String>,
+    pub platform: Option<String>,
     pub name_contains: Option<String>,
-    pub min_members:   Option<i64>,
-    pub max_members:   Option<i64>,
+    pub min_members: Option<i64>,
+    pub max_members: Option<i64>,
 }

@@ -3,9 +3,9 @@
 // Commands: /verify <user_id>, /approve <id>, /deny <id>
 // Trigger:  GatekeeperHandler listens on "chat.join_request" and queues requests.
 
-use std::sync::Arc;
 use bot_db::BotDb;
 use fs_bot::{CommandRegistry, TriggerHandler};
+use std::sync::Arc;
 
 mod commands;
 mod trigger;

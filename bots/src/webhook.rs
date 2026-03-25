@@ -7,10 +7,10 @@
 // Parsed IncomingMessages are forwarded to a Tokio broadcast channel so the
 // runtime's main loop picks them up alongside polled messages.
 
-use axum::Router;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::routing::post;
+use axum::Router;
 use fs_channel::{IncomingMessage, RoomId, UserId};
 use fs_types::resources::MessengerKind;
 use tokio::sync::broadcast;
@@ -41,27 +41,27 @@ async fn handle_webhook(
     body: axum::body::Bytes,
 ) -> StatusCode {
     let kind = match platform_str.as_str() {
-        "telegram"       => MessengerKind::Telegram,
-        "whatsapp"       => MessengerKind::WhatsApp,
-        "line"           => MessengerKind::Line,
-        "viber"          => MessengerKind::Viber,
-        "teams"          => MessengerKind::Teams,
-        "threema"        => MessengerKind::Threema,
-        "discord"        => MessengerKind::Discord,
-        "slack"          => MessengerKind::Slack,
-        "signal"         => MessengerKind::Signal,
-        "rocketchat"     => MessengerKind::RocketChat,
-        "mattermost"     => MessengerKind::Mattermost,
-        "matrix"         => MessengerKind::Matrix,
-        "mastodon"       => MessengerKind::Mastodon,
-        "revolt"         => MessengerKind::Revolt,
-        "nextcloud"      => MessengerKind::NextcloudTalk,
-        "zulip"          => MessengerKind::Zulip,
-        "xmpp"           => MessengerKind::Xmpp,
-        "irc"            => MessengerKind::Irc,
-        "wire"           => MessengerKind::Wire,
-        "discourse"      => MessengerKind::Discourse,
-        "lemmy"          => MessengerKind::Lemmy,
+        "telegram" => MessengerKind::Telegram,
+        "whatsapp" => MessengerKind::WhatsApp,
+        "line" => MessengerKind::Line,
+        "viber" => MessengerKind::Viber,
+        "teams" => MessengerKind::Teams,
+        "threema" => MessengerKind::Threema,
+        "discord" => MessengerKind::Discord,
+        "slack" => MessengerKind::Slack,
+        "signal" => MessengerKind::Signal,
+        "rocketchat" => MessengerKind::RocketChat,
+        "mattermost" => MessengerKind::Mattermost,
+        "matrix" => MessengerKind::Matrix,
+        "mastodon" => MessengerKind::Mastodon,
+        "revolt" => MessengerKind::Revolt,
+        "nextcloud" => MessengerKind::NextcloudTalk,
+        "zulip" => MessengerKind::Zulip,
+        "xmpp" => MessengerKind::Xmpp,
+        "irc" => MessengerKind::Irc,
+        "wire" => MessengerKind::Wire,
+        "discourse" => MessengerKind::Discourse,
+        "lemmy" => MessengerKind::Lemmy,
         _ => {
             tracing::warn!("Webhook: unknown platform '{}'", platform_str);
             return StatusCode::NOT_FOUND;
@@ -107,7 +107,9 @@ fn parse_webhook(kind: MessengerKind, payload: &serde_json::Value) -> Option<Inc
                     "{} {}",
                     from["first_name"].as_str().unwrap_or(""),
                     from["last_name"].as_str().unwrap_or("")
-                ).trim().to_owned(),
+                )
+                .trim()
+                .to_owned(),
                 text,
                 timestamp: msg["date"].as_i64().unwrap_or(0),
                 is_command: is_cmd,
@@ -124,10 +126,15 @@ fn parse_webhook(kind: MessengerKind, payload: &serde_json::Value) -> Option<Inc
             let change = entry["changes"].as_array()?.first()?;
             let value = &change["value"];
             let msg = value["messages"].as_array()?.first()?;
-            if msg["type"].as_str() != Some("text") { return None; }
+            if msg["type"].as_str() != Some("text") {
+                return None;
+            }
             let text = msg["text"]["body"].as_str().unwrap_or("").to_owned();
             let sender = msg["from"].as_str().unwrap_or("").to_owned();
-            let phone_id = value["metadata"]["phone_number_id"].as_str().unwrap_or("").to_owned();
+            let phone_id = value["metadata"]["phone_number_id"]
+                .as_str()
+                .unwrap_or("")
+                .to_owned();
             let (is_cmd, cmd, args) = IncomingMessage::parse_command(&text);
             Some(IncomingMessage {
                 id: msg["id"].as_str().unwrap_or("").to_owned(),
@@ -136,7 +143,10 @@ fn parse_webhook(kind: MessengerKind, payload: &serde_json::Value) -> Option<Inc
                 sender: UserId::new(sender.clone()),
                 sender_name: sender,
                 text,
-                timestamp: msg["timestamp"].as_str().and_then(|s| s.parse().ok()).unwrap_or(0),
+                timestamp: msg["timestamp"]
+                    .as_str()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0),
                 is_command: is_cmd,
                 command: cmd,
                 command_args: args,
@@ -148,13 +158,18 @@ fn parse_webhook(kind: MessengerKind, payload: &serde_json::Value) -> Option<Inc
         // ── LINE ──────────────────────────────────────────────────────────────
         MessengerKind::Line => {
             let event = payload["events"].as_array()?.first()?;
-            if event["type"].as_str() != Some("message") { return None; }
+            if event["type"].as_str() != Some("message") {
+                return None;
+            }
             let msg = &event["message"];
-            if msg["type"].as_str() != Some("text") { return None; }
+            if msg["type"].as_str() != Some("text") {
+                return None;
+            }
             let text = msg["text"].as_str().unwrap_or("").to_owned();
             let source = &event["source"];
             let sender = source["userId"].as_str().unwrap_or("").to_owned();
-            let room = source["groupId"].as_str()
+            let room = source["groupId"]
+                .as_str()
                 .or_else(|| source["roomId"].as_str())
                 .unwrap_or(sender.as_str())
                 .to_owned();
@@ -177,13 +192,20 @@ fn parse_webhook(kind: MessengerKind, payload: &serde_json::Value) -> Option<Inc
 
         // ── Viber ─────────────────────────────────────────────────────────────
         MessengerKind::Viber => {
-            if payload["event"].as_str() != Some("message") { return None; }
+            if payload["event"].as_str() != Some("message") {
+                return None;
+            }
             let msg = &payload["message"];
-            if msg["type"].as_str() != Some("text") { return None; }
+            if msg["type"].as_str() != Some("text") {
+                return None;
+            }
             let text = msg["text"].as_str().unwrap_or("").to_owned();
             let sender = &payload["sender"];
             let sender_id = sender["id"].as_str().unwrap_or("").to_owned();
-            let chat_id = payload["chat_id"].as_str().unwrap_or(sender_id.as_str()).to_owned();
+            let chat_id = payload["chat_id"]
+                .as_str()
+                .unwrap_or(sender_id.as_str())
+                .to_owned();
             let (is_cmd, cmd, args) = IncomingMessage::parse_command(&text);
             Some(IncomingMessage {
                 id: msg["token"].as_str().unwrap_or("").to_owned(),
@@ -197,7 +219,9 @@ fn parse_webhook(kind: MessengerKind, payload: &serde_json::Value) -> Option<Inc
                 command: cmd,
                 command_args: args,
                 callback_payload: payload["sender"]["id"].as_str().and_then(|_| {
-                    msg.get("tracking_data").and_then(|v| v.as_str()).map(|s| s.to_owned())
+                    msg.get("tracking_data")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_owned())
                 }),
                 is_dm: false,
             })

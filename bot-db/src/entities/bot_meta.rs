@@ -4,7 +4,7 @@ use sea_orm::entity::prelude::*;
 #[sea_orm(table_name = "bot_meta")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub key:   String,
+    pub key: String,
     pub value: String,
 }
 

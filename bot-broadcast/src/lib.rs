@@ -3,9 +3,9 @@
 // Commands: /subscribe <topic>, /unsubscribe <topic>, /subscriptions
 // Trigger:  BroadcastHandler listens on "**" and forwards events to subscribed rooms.
 
-use std::sync::Arc;
 use bot_db::BotDb;
 use fs_bot::{CommandRegistry, TriggerHandler};
+use std::sync::Arc;
 
 mod commands;
 mod trigger;

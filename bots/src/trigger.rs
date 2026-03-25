@@ -30,7 +30,14 @@ impl TriggerEngine {
     /// The caller must spawn a task to drain the receiver.
     pub fn new(audit: AuditLog) -> (Self, mpsc::UnboundedReceiver<TriggerAction>) {
         let (tx, rx) = mpsc::unbounded_channel();
-        (Self { handlers: Vec::new(), audit, action_tx: tx }, rx)
+        (
+            Self {
+                handlers: Vec::new(),
+                audit,
+                action_tx: tx,
+            },
+            rx,
+        )
     }
 
     /// Register a trigger handler (concrete type).
@@ -47,7 +54,11 @@ impl TriggerEngine {
     pub async fn dispatch(&self, event: TriggerEvent) {
         let topic = event.topic.clone();
         for handler in &self.handlers {
-            if handler.topics().iter().any(|pat| topic_matches(pat, &topic)) {
+            if handler
+                .topics()
+                .iter()
+                .any(|pat| topic_matches(pat, &topic))
+            {
                 let h = Arc::clone(handler);
                 let ev = event.clone();
                 let tx = self.action_tx.clone();
@@ -62,7 +73,13 @@ impl TriggerEngine {
             }
         }
         self.audit
-            .system_action(&format!("trigger.dispatch:{}", topic), None, None, "ok", None)
+            .system_action(
+                &format!("trigger.dispatch:{}", topic),
+                None,
+                None,
+                "ok",
+                None,
+            )
             .await;
     }
 
@@ -112,11 +129,19 @@ mod tests {
     use super::topic_matches;
 
     #[test]
-    fn exact_match()      { assert!(topic_matches("a.b.c", "a.b.c")); }
+    fn exact_match() {
+        assert!(topic_matches("a.b.c", "a.b.c"));
+    }
     #[test]
-    fn star_segment()     { assert!(topic_matches("a.*.c", "a.b.c")); }
+    fn star_segment() {
+        assert!(topic_matches("a.*.c", "a.b.c"));
+    }
     #[test]
-    fn double_star_suffix() { assert!(topic_matches("a.**", "a.b.c.d")); }
+    fn double_star_suffix() {
+        assert!(topic_matches("a.**", "a.b.c.d"));
+    }
     #[test]
-    fn no_match()         { assert!(!topic_matches("a.b", "a.b.c")); }
+    fn no_match() {
+        assert!(!topic_matches("a.b", "a.b.c"));
+    }
 }

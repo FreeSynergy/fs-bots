@@ -2,18 +2,14 @@
 //
 // Usage: fs-bot-runtime --config <path/to/bot.toml>
 
-use std::sync::Arc;
 use anyhow::{Context, Result};
 use fs_bot::CommandRegistry;
+use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
 
 use fs_bots::{
-    audit::AuditLog,
-    config::BotInstanceConfig,
-    db::BotDb,
-    dispatcher::CommandDispatcher,
-    runtime::BotRuntime,
-    trigger::TriggerEngine,
+    audit::AuditLog, config::BotInstanceConfig, db::BotDb, dispatcher::CommandDispatcher,
+    runtime::BotRuntime, trigger::TriggerEngine,
 };
 
 mod commands;
@@ -31,11 +27,11 @@ async fn main() -> Result<()> {
 
     let config_str = std::fs::read_to_string(&config_path)
         .with_context(|| format!("Cannot read config file '{}'", config_path))?;
-    let config: BotInstanceConfig = toml::from_str(&config_str)
-        .context("Invalid bot.toml")?;
+    let config: BotInstanceConfig = toml::from_str(&config_str).context("Invalid bot.toml")?;
 
     let db_path = format!("{}/fs-botmanager.db", config.data_dir);
-    let db = BotDb::open(&db_path).await
+    let db = BotDb::open(&db_path)
+        .await
         .with_context(|| format!("Cannot open database '{}'", db_path))?;
     let db = Arc::new(db);
 
@@ -60,7 +56,14 @@ async fn main() -> Result<()> {
     }
 
     let dispatcher = CommandDispatcher::new(Arc::new(registry), audit.clone());
-    let runtime = BotRuntime::new(config, dispatcher, trigger, action_rx, Arc::clone(&db), audit);
+    let runtime = BotRuntime::new(
+        config,
+        dispatcher,
+        trigger,
+        action_rx,
+        Arc::clone(&db),
+        audit,
+    );
     runtime.run().await;
 
     Ok(())

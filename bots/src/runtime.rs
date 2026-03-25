@@ -51,11 +51,16 @@ impl BotRuntime {
     }
 
     pub async fn run(self) {
-        info!("Bot '{}' starting (id={})", self.config.name, self.config.instance_id);
+        info!(
+            "Bot '{}' starting (id={})",
+            self.config.name, self.config.instance_id
+        );
 
         let (webhook_tx, _) =
             broadcast::channel::<(MessengerKind, fs_channel::IncomingMessage)>(WEBHOOK_CHANNEL_CAP);
-        let webhook_state = WebhookState { tx: webhook_tx.clone() };
+        let webhook_state = WebhookState {
+            tx: webhook_tx.clone(),
+        };
 
         let webhook_port: u16 = std::env::var("FS_BOT_WEBHOOK_PORT")
             .ok()
@@ -131,7 +136,9 @@ impl BotRuntime {
             .system_action("runtime.start", None, None, "ok", None)
             .await;
 
-        tokio::signal::ctrl_c().await.expect("Failed to listen for SIGINT");
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to listen for SIGINT");
         info!("Shutdown — stopping bot '{}'", self.config.name);
         self.audit
             .system_action("runtime.stop", None, None, "ok", None)
@@ -146,8 +153,15 @@ async fn route_trigger_action(
     messenger_configs: &[crate::config::MessengerConfig],
 ) {
     match action {
-        TriggerAction::SendToRoom { platform, room_id, text } => {
-            let Some(mc) = messenger_configs.iter().find(|m| m.kind.label() == platform) else {
+        TriggerAction::SendToRoom {
+            platform,
+            room_id,
+            text,
+        } => {
+            let Some(mc) = messenger_configs
+                .iter()
+                .find(|m| m.kind.label() == platform)
+            else {
                 warn!("TriggerAction: unknown platform '{}'", platform);
                 return;
             };
@@ -157,8 +171,15 @@ async fn route_trigger_action(
                 }
             }
         }
-        TriggerAction::SendDm { platform, user_id, text } => {
-            let Some(mc) = messenger_configs.iter().find(|m| m.kind.label() == platform) else {
+        TriggerAction::SendDm {
+            platform,
+            user_id,
+            text,
+        } => {
+            let Some(mc) = messenger_configs
+                .iter()
+                .find(|m| m.kind.label() == platform)
+            else {
                 warn!("TriggerAction: unknown platform '{}'", platform);
                 return;
             };

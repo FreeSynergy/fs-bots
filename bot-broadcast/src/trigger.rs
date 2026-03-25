@@ -1,9 +1,9 @@
 // BroadcastHandler — forwards Bus events to subscribed rooms.
 
-use std::sync::Arc;
 use async_trait::async_trait;
 use bot_db::BotDb;
 use fs_bot::trigger::{TriggerAction, TriggerEvent, TriggerHandler};
+use std::sync::Arc;
 use tracing::warn;
 
 /// Listens on all Bus topics and sends events to rooms that have subscribed.

@@ -3,9 +3,9 @@
 // Commands: /bots, /bot-create <name> <type>, /bot-status <name>, /bot-logs [n]
 // Trigger:  ControlHandler listens on "bot.**" events.
 
-use std::sync::Arc;
 use bot_db::BotDb;
 use fs_bot::{CommandRegistry, TriggerHandler};
+use std::sync::Arc;
 
 mod commands;
 mod trigger;

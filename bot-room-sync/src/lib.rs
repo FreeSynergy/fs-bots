@@ -9,9 +9,9 @@
 //
 // Trigger: handles "chat.message" events and forwards them to linked rooms.
 
-use std::sync::Arc;
 use bot_db::BotDb;
 use fs_bot::{CommandRegistry, TriggerHandler};
+use std::sync::Arc;
 
 mod commands;
 mod trigger;

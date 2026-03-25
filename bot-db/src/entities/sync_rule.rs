@@ -4,15 +4,15 @@ use sea_orm::entity::prelude::*;
 #[sea_orm(table_name = "sync_rules")]
 pub struct Model {
     #[sea_orm(primary_key)]
-    pub id:              i64,
+    pub id: i64,
     pub source_platform: String,
-    pub source_room:     String,
+    pub source_room: String,
     pub target_platform: String,
-    pub target_room:     String,
-    pub direction:       String,
-    pub sync_members:    i64,
-    pub enabled:         i64,
-    pub created_at:      String,
+    pub target_room: String,
+    pub direction: String,
+    pub sync_members: i64,
+    pub enabled: i64,
+    pub created_at: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
