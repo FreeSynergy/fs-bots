@@ -7,7 +7,7 @@ license     = "MIT"
 authors     = ["FreeSynergy.Net"]
 
 [dependencies]
-fs-db   = { path = "../../fs-libs/fs-db", features = ["sqlite"] }
+fs-db   = { path = "../../fs-db", features = ["sqlite"] }
 sea-orm = { version = "=2.0.0-rc.37", default-features = false, features = ["macros"] }
 anyhow  = "1"
 chrono  = { version = "0.4", features = ["serde"] }

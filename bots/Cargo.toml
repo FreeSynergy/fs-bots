@@ -12,8 +12,11 @@ path = "src/main.rs"
 
 [dependencies]
 # FreeSynergy Lib
-fs-channel  = { path = "../../fs-libs/fs-channel", features = ["matrix", "telegram"] }
-fs-bot      = { path = "../../fs-libs/fs-bot" }
+# matrix feature disabled: upstream matrix-sdk 0.16 recursion overflow on rustc ≥1.94
+# Re-enable when matrix-sdk fixes the bug (or we upgrade to a fixed version).
+# See: https://github.com/matrix-org/matrix-rust-sdk/issues/...
+fs-channel  = { path = "../../fs-channel", features = ["telegram"] }
+fs-bot      = { path = "../fs-bot" }
 
 # Bot modules (N5-N10)
 bot-broadcast  = { path = "../bot-broadcast" }

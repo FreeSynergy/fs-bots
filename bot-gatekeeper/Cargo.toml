@@ -7,7 +7,7 @@ license     = "MIT"
 authors     = ["FreeSynergy.Net"]
 
 [dependencies]
-fs-bot   = { path = "../../fs-libs/fs-bot" }
+fs-bot   = { path = "../fs-bot" }
 bot-db  = { path = "../bot-db" }
 
 async-trait = "0.1"

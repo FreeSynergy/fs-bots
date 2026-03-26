@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "fs-bot",
     "bot-db",
     "bots",
     "bot-broadcast",
