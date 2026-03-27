@@ -21,10 +21,12 @@ impl HealthQueryProvider for StubHealthProvider {
 }
 
 impl HealthQueryCommand {
+    #[must_use]
     pub fn new(provider: Box<dyn HealthQueryProvider>) -> Self {
         Self { provider }
     }
 
+    #[must_use]
     pub fn stub() -> Self {
         Self::new(Box::new(StubHealthProvider))
     }
@@ -32,10 +34,10 @@ impl HealthQueryCommand {
 
 #[async_trait]
 impl BotCommand for HealthQueryCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "health"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Show service health"
     }
     fn usage(&self) -> Option<&str> {

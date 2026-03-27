@@ -15,7 +15,7 @@ pub struct BotInstanceConfig {
     pub name: String,
     /// Unique instance ID (UUID v4).
     pub instance_id: String,
-    /// Data directory for this instance's SQLite database and state.
+    /// Data directory for this instance's `SQLite` database and state.
     pub data_dir: String,
     /// Messenger connections this instance maintains.
     pub messengers: Vec<MessengerConfig>,

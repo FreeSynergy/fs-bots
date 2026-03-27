@@ -17,10 +17,10 @@ pub struct SubscribeCommand {
 
 #[async_trait]
 impl BotCommand for SubscribeCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "subscribe"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Subscribe this room to a Bus topic"
     }
     fn required_right(&self) -> Right {
@@ -35,7 +35,7 @@ impl BotCommand for SubscribeCommand {
             return BotResponse::error("Usage: /subscribe <topic>");
         };
         match self.db.subscribe(&ctx.platform, &ctx.room_id, topic).await {
-            Ok(_) => BotResponse::text(format!("Subscribed to `{topic}`.")),
+            Ok(()) => BotResponse::text(format!("Subscribed to `{topic}`.")),
             Err(e) => BotResponse::error(format!("DB error: {e}")),
         }
     }
@@ -47,10 +47,10 @@ pub struct UnsubscribeCommand {
 
 #[async_trait]
 impl BotCommand for UnsubscribeCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "unsubscribe"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Unsubscribe this room from a Bus topic"
     }
     fn required_right(&self) -> Right {
@@ -69,7 +69,7 @@ impl BotCommand for UnsubscribeCommand {
             .unsubscribe(&ctx.platform, &ctx.room_id, topic)
             .await
         {
-            Ok(_) => BotResponse::text(format!("Unsubscribed from `{topic}`.")),
+            Ok(()) => BotResponse::text(format!("Unsubscribed from `{topic}`.")),
             Err(e) => BotResponse::error(format!("DB error: {e}")),
         }
     }
@@ -81,10 +81,10 @@ pub struct SubscriptionsCommand {
 
 #[async_trait]
 impl BotCommand for SubscriptionsCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "subscriptions"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "List active Bus topic subscriptions for this room"
     }
     fn required_right(&self) -> Right {

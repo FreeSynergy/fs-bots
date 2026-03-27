@@ -5,10 +5,10 @@ pub struct PingCommand;
 
 #[async_trait]
 impl BotCommand for PingCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "ping"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Check if the bot is alive"
     }
     fn required_right(&self) -> Right {

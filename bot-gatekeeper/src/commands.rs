@@ -17,10 +17,10 @@ pub struct VerifyCommand {
 
 #[async_trait]
 impl BotCommand for VerifyCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "verify"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Verify a user's IAM membership and queue a join request"
     }
     fn required_right(&self) -> Right {
@@ -65,10 +65,10 @@ pub struct ApproveCommand {
 
 #[async_trait]
 impl BotCommand for ApproveCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "approve"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Approve a pending join request"
     }
     fn required_right(&self) -> Right {
@@ -86,15 +86,14 @@ impl BotCommand for ApproveCommand {
             return BotResponse::error("Request ID must be a number.");
         };
         match self.db.resolve_join_request(id, "approved", None).await {
-            Ok(_) => {
+            Ok(()) => {
                 let user = self
                     .db
                     .get_join_request(id)
                     .await
                     .ok()
                     .flatten()
-                    .map(|r| r.user_id)
-                    .unwrap_or_else(|| "unknown".to_string());
+                    .map_or_else(|| "unknown".to_string(), |r| r.user_id);
                 BotResponse::text(format!(
                     "Request #{id} approved. User `{user}` can now be invited."
                 ))
@@ -110,10 +109,10 @@ pub struct DenyCommand {
 
 #[async_trait]
 impl BotCommand for DenyCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "deny"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Deny a pending join request"
     }
     fn required_right(&self) -> Right {
@@ -131,7 +130,7 @@ impl BotCommand for DenyCommand {
             return BotResponse::error("Request ID must be a number.");
         };
         match self.db.resolve_join_request(id, "denied", None).await {
-            Ok(_) => BotResponse::text(format!("Request #{id} denied.")),
+            Ok(()) => BotResponse::text(format!("Request #{id} denied.")),
             Err(e) => BotResponse::error(format!("{e}")),
         }
     }

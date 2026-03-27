@@ -1,4 +1,6 @@
-//! Bot command framework for FreeSynergy.
+#![deny(clippy::all, clippy::pedantic, warnings)]
+
+//! Bot command framework for `FreeSynergy`.
 //!
 //! Provides:
 //! - [`BotCommand`] trait and [`CommandRegistry`] for dispatching commands

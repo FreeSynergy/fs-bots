@@ -18,10 +18,10 @@ impl HelpCommand {
 
 #[async_trait]
 impl BotCommand for HelpCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "help"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "List all available commands"
     }
     fn required_right(&self) -> Right {

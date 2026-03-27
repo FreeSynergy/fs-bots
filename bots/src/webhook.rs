@@ -84,7 +84,7 @@ async fn handle_webhook(
     StatusCode::OK
 }
 
-/// Parse a webhook payload into an IncomingMessage.
+/// Parse a webhook payload into an `IncomingMessage`.
 ///
 /// Each platform has its own format.  Returns `None` if the payload is not a
 /// message event (e.g. delivery receipt, typing indicator).
@@ -221,7 +221,7 @@ fn parse_webhook(kind: MessengerKind, payload: &serde_json::Value) -> Option<Inc
                 callback_payload: payload["sender"]["id"].as_str().and_then(|_| {
                     msg.get("tracking_data")
                         .and_then(|v| v.as_str())
-                        .map(|s| s.to_owned())
+                        .map(std::borrow::ToOwned::to_owned)
                 }),
                 is_dm: false,
             })

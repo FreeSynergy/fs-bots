@@ -1,3 +1,5 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
+
 // bot-broadcast — N6: Subscribe rooms to Bus topics and broadcast events.
 //
 // Commands: /subscribe <topic>, /unsubscribe <topic>, /subscriptions

@@ -8,10 +8,10 @@ pub struct StatusCommand;
 
 #[async_trait]
 impl BotCommand for StatusCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "status"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Show bot status and connected messengers."
     }
     fn required_right(&self) -> Right {
@@ -22,10 +22,9 @@ impl BotCommand for StatusCommand {
     }
 
     async fn execute(&self, ctx: CommandContext) -> BotResponse {
-        let platform = ctx.platform.label();
+        let platform = &ctx.platform;
         BotResponse::text(format!(
-            "FreeSynergy Bot — online\nPlatform: {}\nType /help for available commands.",
-            platform
+            "FreeSynergy Bot — online\nPlatform: {platform}\nType /help for available commands.",
         ))
     }
 }

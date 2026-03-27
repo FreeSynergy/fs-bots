@@ -1,3 +1,5 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
+
 // bot-control — N5: Manage child bot instances.
 //
 // Commands: /bots, /bot-create <name> <type>, /bot-status <name>, /bot-logs [n]

@@ -32,6 +32,7 @@ pub struct BotRuntime {
 }
 
 impl BotRuntime {
+    #[must_use]
     pub fn new(
         config: BotInstanceConfig,
         dispatcher: CommandDispatcher,
@@ -50,6 +51,11 @@ impl BotRuntime {
         }
     }
 
+    /// # Panics
+    ///
+    /// Panics if the webhook TCP listener cannot bind to the configured port,
+    /// or if SIGINT cannot be registered.
+    #[allow(clippy::cognitive_complexity)]
     pub async fn run(self) {
         info!(
             "Bot '{}' starting (id={})",
@@ -67,7 +73,7 @@ impl BotRuntime {
             .and_then(|s| s.parse().ok())
             .unwrap_or(9090);
         let webhook_router = webhook::router(webhook_state);
-        let webhook_addr = format!("0.0.0.0:{}", webhook_port);
+        let webhook_addr = format!("0.0.0.0:{webhook_port}");
         tokio::spawn(async move {
             info!("Webhook server listening on {}", webhook_addr);
             let listener = tokio::net::TcpListener::bind(&webhook_addr)
@@ -115,7 +121,7 @@ impl BotRuntime {
                         }
                     }
                     Err(broadcast::error::RecvError::Lagged(n)) => {
-                        warn!("Webhook channel lagged by {}", n)
+                        warn!("Webhook channel lagged by {}", n);
                     }
                     Err(broadcast::error::RecvError::Closed) => break,
                 }
@@ -148,6 +154,7 @@ impl BotRuntime {
 
 // ── route_trigger_action ──────────────────────────────────────────────────────
 
+#[allow(clippy::cognitive_complexity)]
 async fn route_trigger_action(
     action: TriggerAction,
     messenger_configs: &[crate::config::MessengerConfig],
@@ -194,6 +201,7 @@ async fn route_trigger_action(
 
 // ── poll_loop ─────────────────────────────────────────────────────────────────
 
+#[allow(clippy::cognitive_complexity)]
 async fn poll_loop(
     adapter: Box<dyn BotChannel>,
     kind: MessengerKind,

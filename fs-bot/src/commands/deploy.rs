@@ -21,10 +21,10 @@ impl DeployCommand {
 
 #[async_trait]
 impl BotCommand for DeployCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "deploy"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Trigger a deployment"
     }
     fn usage(&self) -> Option<&str> {

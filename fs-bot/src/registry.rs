@@ -17,6 +17,7 @@ pub struct CommandRegistry {
 
 impl CommandRegistry {
     /// Create an empty registry.
+    #[must_use]
     pub fn new() -> Self {
         Self::default()
     }
@@ -30,6 +31,7 @@ impl CommandRegistry {
     }
 
     /// Look up a command by name (without prefix).
+    #[must_use]
     pub fn get(&self, name: &str) -> Option<Arc<dyn BotCommand>> {
         self.commands.get(name).cloned()
     }
@@ -42,6 +44,7 @@ impl CommandRegistry {
     }
 
     /// Return all registered commands as `(name, command)` pairs, sorted by name.
+    #[must_use]
     pub fn all(&self) -> Vec<(&str, Arc<dyn BotCommand>)> {
         let mut pairs: Vec<_> = self
             .commands

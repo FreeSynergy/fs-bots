@@ -667,6 +667,7 @@ dependencies = [
  "bot-room-sync",
  "fs-bot",
  "fs-channel",
+ "fs-types",
  "serde",
  "serde_json",
  "tokio",
@@ -698,7 +699,9 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "chrono",
+ "fs-types",
  "serde",
+ "serde_json",
  "teloxide",
  "thiserror",
  "tokio",

@@ -18,10 +18,10 @@ pub struct BotsCommand {
 
 #[async_trait]
 impl BotCommand for BotsCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "bots"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "List all managed child bot instances"
     }
     fn required_right(&self) -> Right {
@@ -54,10 +54,10 @@ pub struct BotCreateCommand {
 
 #[async_trait]
 impl BotCommand for BotCreateCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "bot-create"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Register a new child bot instance"
     }
     fn required_right(&self) -> Right {
@@ -75,7 +75,7 @@ impl BotCommand for BotCreateCommand {
         let bot_type = &ctx.args[1];
         let data_dir = format!("/var/lib/fs-bots/{name}");
         match self.db.add_child_bot(name, bot_type, &data_dir).await {
-            Ok(_) => BotResponse::text(format!(
+            Ok(()) => BotResponse::text(format!(
                 "Child bot `{name}` ({bot_type}) registered.\nData dir: {data_dir}"
             )),
             Err(e) => BotResponse::error(format!("DB error: {e}")),
@@ -89,10 +89,10 @@ pub struct BotStatusCommand {
 
 #[async_trait]
 impl BotCommand for BotStatusCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "bot-status"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Show status of a child bot"
     }
     fn required_right(&self) -> Right {
@@ -131,10 +131,10 @@ pub struct BotLogsCommand {
 
 #[async_trait]
 impl BotCommand for BotLogsCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "bot-logs"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Show recent audit log entries"
     }
     fn required_right(&self) -> Right {

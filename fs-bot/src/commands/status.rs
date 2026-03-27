@@ -18,6 +18,7 @@ impl StatusProvider for DefaultStatusProvider {
 }
 
 impl StatusCommand {
+    #[must_use]
     pub fn new(provider: Box<dyn StatusProvider>) -> Self {
         Self { provider }
     }
@@ -31,10 +32,10 @@ impl Default for StatusCommand {
 
 #[async_trait]
 impl BotCommand for StatusCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "status"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Show system status"
     }
     fn usage(&self) -> Option<&str> {

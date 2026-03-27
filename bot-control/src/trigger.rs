@@ -6,7 +6,7 @@ use tracing::info;
 
 /// Listens on `bot.**` events.
 ///
-/// In Phase N11, this will forward status requests to the BotManager.
+/// In Phase N11, this will forward status requests to the `BotManager`.
 pub struct ControlHandler;
 
 #[async_trait]

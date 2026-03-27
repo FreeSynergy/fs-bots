@@ -1,3 +1,5 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
+
 // bot-room-sync — N10: Synchronize messages and members across rooms / platforms.
 //
 // Schema tables: sync_rules, sync_messages (managed by bot-db).

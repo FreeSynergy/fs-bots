@@ -1,3 +1,5 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
+
 // Bot runtime library modules.
 
 pub mod audit;

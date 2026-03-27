@@ -31,7 +31,7 @@ pub trait BotCommand: Send + Sync {
     fn name(&self) -> &str;
 
     /// Short human-readable description shown in /help output.
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         ""
     }
 

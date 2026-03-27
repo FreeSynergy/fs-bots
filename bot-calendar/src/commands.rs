@@ -9,15 +9,15 @@ pub fn register_all(registry: &mut CommandRegistry) {
 
 // ── /termine ──────────────────────────────────────────────────────────────────
 
-/// Shows upcoming events from the FreeSynergy Desktop Calendar.
+/// Shows upcoming events from the `FreeSynergy` Desktop Calendar.
 pub struct TermineCommand;
 
 #[async_trait]
 impl BotCommand for TermineCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "termine"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Show upcoming calendar events"
     }
     fn required_right(&self) -> Right {

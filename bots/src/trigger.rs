@@ -28,6 +28,7 @@ impl TriggerEngine {
     ///
     /// Returns the engine and a receiver for [`TriggerAction`]s.
     /// The caller must spawn a task to drain the receiver.
+    #[must_use]
     pub fn new(audit: AuditLog) -> (Self, mpsc::UnboundedReceiver<TriggerAction>) {
         let (tx, rx) = mpsc::unbounded_channel();
         (
@@ -73,17 +74,12 @@ impl TriggerEngine {
             }
         }
         self.audit
-            .system_action(
-                &format!("trigger.dispatch:{}", topic),
-                None,
-                None,
-                "ok",
-                None,
-            )
+            .system_action(&format!("trigger.dispatch:{topic}"), None, None, "ok", None)
             .await;
     }
 
     /// All subscribed topics across all handlers (deduplicated, sorted).
+    #[must_use]
     pub fn subscribed_topics(&self) -> Vec<&str> {
         let mut topics: Vec<&str> = self
             .handlers

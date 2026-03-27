@@ -19,10 +19,10 @@ struct SyncStartCommand {
 
 #[async_trait]
 impl BotCommand for SyncStartCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "sync-start"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Start syncing this room with another room (same or cross-platform)"
     }
     fn required_right(&self) -> Right {
@@ -36,7 +36,7 @@ impl BotCommand for SyncStartCommand {
         let Some(tgt_platform) = ctx.arg0() else {
             return BotResponse::error("Usage: /sync-start <target_platform> <target_room>");
         };
-        let Some(tgt_room) = ctx.args.get(1).map(|s| s.as_str()) else {
+        let Some(tgt_room) = ctx.args.get(1).map(String::as_str) else {
             return BotResponse::error("Usage: /sync-start <target_platform> <target_room>");
         };
 
@@ -71,10 +71,10 @@ struct SyncStopCommand {
 
 #[async_trait]
 impl BotCommand for SyncStopCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "sync-stop"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "Stop syncing this room with another room"
     }
     fn required_right(&self) -> Right {
@@ -88,7 +88,7 @@ impl BotCommand for SyncStopCommand {
         let Some(tgt_platform) = ctx.arg0() else {
             return BotResponse::error("Usage: /sync-stop <target_platform> <target_room>");
         };
-        let Some(tgt_room) = ctx.args.get(1).map(|s| s.as_str()) else {
+        let Some(tgt_room) = ctx.args.get(1).map(String::as_str) else {
             return BotResponse::error("Usage: /sync-stop <target_platform> <target_room>");
         };
 
@@ -115,10 +115,10 @@ struct SyncStatusCommand {
 
 #[async_trait]
 impl BotCommand for SyncStatusCommand {
-    fn name(&self) -> &str {
+    fn name(&self) -> &'static str {
         "sync-status"
     }
-    fn description(&self) -> &str {
+    fn description(&self) -> &'static str {
         "List active sync rules for this room"
     }
     fn required_right(&self) -> Right {

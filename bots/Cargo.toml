@@ -17,6 +17,7 @@ path = "src/main.rs"
 # See: https://github.com/matrix-org/matrix-rust-sdk/issues/...
 fs-channel  = { path = "../../fs-channel", features = ["telegram"] }
 fs-bot      = { path = "../fs-bot" }
+fs-types    = { path = "../../fs-libs/fs-types" }
 
 # Bot modules (N5-N10)
 bot-broadcast  = { path = "../bot-broadcast" }

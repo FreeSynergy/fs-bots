@@ -1,3 +1,5 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
+
 // bot-gatekeeper — N7: Join-request queue with IAM-based access control.
 //
 // Commands: /verify <user_id>, /approve <id>, /deny <id>

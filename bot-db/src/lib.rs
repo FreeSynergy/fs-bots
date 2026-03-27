@@ -1,3 +1,5 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
+
 // bot-db — BotDb object and all bot domain entities.
 //
 // The single database object for the bot manager. All bot sub-crates depend
@@ -37,9 +39,13 @@ pub struct BotDb {
 
 impl BotDb {
     /// Open (or create) the database at `path` and apply the schema.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database cannot be opened or the schema cannot be applied.
     pub async fn open(path: &str) -> Result<Self> {
         use fs_db::sea_orm::Database;
-        let url = format!("sqlite://{}?mode=rwc", path);
+        let url = format!("sqlite://{path}?mode=rwc");
         let conn = Database::connect(&url).await?;
         conn.execute_unprepared(SCHEMA).await?;
         Ok(Self { conn })
@@ -47,6 +53,11 @@ impl BotDb {
 
     // ── Audit ─────────────────────────────────────────────────────────────────
 
+    /// Write one audit log entry.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn audit(&self, entry: AuditEntry<'_>) -> Result<()> {
         audit_log::ActiveModel {
             actor_type: Set(entry.actor_type.to_string()),
@@ -65,6 +76,11 @@ impl BotDb {
         Ok(())
     }
 
+    /// Return the most recent `limit` audit log entries, newest first.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn recent_audit(&self, limit: u64) -> Result<Vec<audit_log::Model>> {
         Ok(audit_log::Entity::find()
             .order_by(audit_log::Column::Id, Order::Desc)
@@ -75,19 +91,29 @@ impl BotDb {
 
     // ── Poll state ────────────────────────────────────────────────────────────
 
+    /// Return the last poll offset for `platform`/`room_id`, or 0 if not set.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn get_offset(&self, platform: &str, room_id: &str) -> Result<u64> {
         let row = poll_state::Entity::find_by_id((platform.to_string(), room_id.to_string()))
             .one(&self.conn)
             .await?;
-        Ok(row.map(|r| r.last_offset as u64).unwrap_or(0))
+        Ok(row.map_or(0, |r| r.last_offset.cast_unsigned()))
     }
 
+    /// Persist the poll offset for `platform`/`room_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn set_offset(&self, platform: &str, room_id: &str, offset: u64) -> Result<()> {
         use fs_db::sea_orm::sea_query::OnConflict;
         let model = poll_state::ActiveModel {
             platform: Set(platform.to_string()),
             room_id: Set(room_id.to_string()),
-            last_offset: Set(offset as i64),
+            last_offset: Set(offset.cast_signed()),
         };
         poll_state::Entity::insert(model)
             .on_conflict(
@@ -102,6 +128,11 @@ impl BotDb {
 
     // ── Known rooms ───────────────────────────────────────────────────────────
 
+    /// Insert or update a known room record.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn upsert_room(
         &self,
         platform: &str,
@@ -133,6 +164,11 @@ impl BotDb {
         Ok(())
     }
 
+    /// Query known rooms, applying the given filter criteria.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn filter_rooms(&self, filter: &GroupFilter) -> Result<Vec<known_room::Model>> {
         let mut query = known_room::Entity::find();
         if let Some(ref platform) = filter.platform {
@@ -155,6 +191,11 @@ impl BotDb {
 
     // ── Subscriptions ─────────────────────────────────────────────────────────
 
+    /// Subscribe `platform`/`room_id` to `topic` (idempotent).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn subscribe(&self, platform: &str, room_id: &str, topic: &str) -> Result<()> {
         use fs_db::sea_orm::sea_query::OnConflict;
         let model = subscription::ActiveModel {
@@ -171,6 +212,11 @@ impl BotDb {
         Ok(())
     }
 
+    /// Remove the subscription of `platform`/`room_id` from `topic`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn unsubscribe(&self, platform: &str, room_id: &str, topic: &str) -> Result<()> {
         subscription::Entity::delete_many()
             .filter(subscription::Column::Platform.eq(platform))
@@ -181,6 +227,11 @@ impl BotDb {
         Ok(())
     }
 
+    /// Return all topic names subscribed to by `platform`/`room_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn subscriptions_for_room(
         &self,
         platform: &str,
@@ -196,7 +247,11 @@ impl BotDb {
             .collect())
     }
 
-    /// All (platform, room_id) pairs subscribed to the given topic.
+    /// All (platform, `room_id`) pairs subscribed to the given topic.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn subscriptions_for_room_by_topic(
         &self,
         topic: &str,
@@ -212,6 +267,11 @@ impl BotDb {
 
     // ── Room collections ──────────────────────────────────────────────────────
 
+    /// Create a new room collection. Returns the generated id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn create_collection(&self, name: &str, description: Option<&str>) -> Result<i64> {
         let result = room_collection::ActiveModel {
             name: Set(name.to_string()),
@@ -224,6 +284,11 @@ impl BotDb {
         Ok(result.id)
     }
 
+    /// Delete a room collection by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn delete_collection(&self, id: i64) -> Result<()> {
         room_collection::Entity::delete_by_id(id)
             .exec(&self.conn)
@@ -231,6 +296,11 @@ impl BotDb {
         Ok(())
     }
 
+    /// List all room collections, ordered by name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn list_collections(&self) -> Result<Vec<room_collection::Model>> {
         Ok(room_collection::Entity::find()
             .order_by_asc(room_collection::Column::Name)
@@ -238,6 +308,11 @@ impl BotDb {
             .await?)
     }
 
+    /// Add `platform`/`room_id` to a collection (idempotent).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn add_to_collection(
         &self,
         collection_id: i64,
@@ -256,6 +331,11 @@ impl BotDb {
         Ok(())
     }
 
+    /// Remove `platform`/`room_id` from a collection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn remove_from_collection(
         &self,
         collection_id: i64,
@@ -271,6 +351,11 @@ impl BotDb {
         Ok(())
     }
 
+    /// Return all members of a collection.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn rooms_in_collection(
         &self,
         collection_id: i64,
@@ -283,6 +368,11 @@ impl BotDb {
 
     // ── Join requests ─────────────────────────────────────────────────────────
 
+    /// Queue a new join request. Returns the generated request id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn add_join_request(
         &self,
         platform: &str,
@@ -302,10 +392,20 @@ impl BotDb {
         Ok(result.id)
     }
 
+    /// Fetch a single join request by id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn get_join_request(&self, id: i64) -> Result<Option<join_request::Model>> {
         Ok(join_request::Entity::find_by_id(id).one(&self.conn).await?)
     }
 
+    /// List all pending join requests for `platform`/`room_id`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn list_pending_join_requests(
         &self,
         platform: &str,
@@ -320,6 +420,11 @@ impl BotDb {
             .await?)
     }
 
+    /// Update the status of a join request.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the request is not found or the database write fails.
     pub async fn resolve_join_request(
         &self,
         id: i64,
@@ -340,6 +445,11 @@ impl BotDb {
 
     // ── Child bots ────────────────────────────────────────────────────────────
 
+    /// Register a new child bot (idempotent by name).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn add_child_bot(&self, name: &str, bot_type: &str, data_dir: &str) -> Result<()> {
         use fs_db::sea_orm::sea_query::OnConflict;
         child_bot::Entity::insert(child_bot::ActiveModel {
@@ -355,6 +465,11 @@ impl BotDb {
         Ok(())
     }
 
+    /// List all registered child bots, ordered by name.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn list_child_bots(&self) -> Result<Vec<child_bot::Model>> {
         Ok(child_bot::Entity::find()
             .order_by_asc(child_bot::Column::Name)
@@ -362,6 +477,11 @@ impl BotDb {
             .await?)
     }
 
+    /// Update the runtime status and PID of a child bot.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bot is not found or the database write fails.
     pub async fn set_child_bot_status(
         &self,
         name: &str,
@@ -382,6 +502,11 @@ impl BotDb {
 
     // ── Bot meta ──────────────────────────────────────────────────────────────
 
+    /// Read a metadata key, returning `None` if not set.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn get_meta(&self, key: &str) -> Result<Option<String>> {
         Ok(bot_meta::Entity::find_by_id(key.to_string())
             .one(&self.conn)
@@ -389,6 +514,11 @@ impl BotDb {
             .map(|m| m.value))
     }
 
+    /// Write (upsert) a metadata key/value pair.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn set_meta(&self, key: &str, value: &str) -> Result<()> {
         use fs_db::sea_orm::sea_query::OnConflict;
         bot_meta::Entity::insert(bot_meta::ActiveModel {
@@ -408,6 +538,10 @@ impl BotDb {
     // ── Sync rules ────────────────────────────────────────────────────────────
 
     /// Create or re-enable a sync rule. Returns the rule id.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails or the rule cannot be found after upsert.
     pub async fn create_rule(
         &self,
         src_platform: &str,
@@ -424,7 +558,7 @@ impl BotDb {
             target_platform: Set(tgt_platform.to_string()),
             target_room: Set(tgt_room.to_string()),
             direction: Set(direction.to_string()),
-            sync_members: Set(sync_members as i64),
+            sync_members: Set(i64::from(sync_members)),
             enabled: Set(1),
             created_at: Set(Utc::now().to_rfc3339()),
             ..Default::default()
@@ -452,7 +586,11 @@ impl BotDb {
         Ok(rule.id)
     }
 
-    /// Disable (not delete) a sync rule. Returns true if a rule was found.
+    /// Disable (not delete) a sync rule. Returns `true` if a rule was found.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database write fails.
     pub async fn disable_rule(
         &self,
         src_platform: &str,
@@ -472,6 +610,10 @@ impl BotDb {
     }
 
     /// Active sync rules where `platform`/`room` is source, or bidirectional target.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn active_rules_for(&self, platform: &str, room: &str) -> Result<Vec<SyncRule>> {
         let rows = sync_rule::Entity::find()
             .filter(sync_rule::Column::Enabled.eq(1i64))
@@ -495,6 +637,10 @@ impl BotDb {
     }
 
     /// All active sync rules (used by trigger handler on startup).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database query fails.
     pub async fn all_active_rules(&self) -> Result<Vec<SyncRule>> {
         let rows = sync_rule::Entity::find()
             .filter(sync_rule::Column::Enabled.eq(1i64))
@@ -503,7 +649,11 @@ impl BotDb {
         Ok(rows.into_iter().map(SyncRule::from).collect())
     }
 
-    /// Record a forwarded message for deduplication. Returns false if already forwarded.
+    /// Record a forwarded message for deduplication. Returns `false` if already forwarded.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the database read or write fails.
     pub async fn record_forward(
         &self,
         rule_id: i64,
@@ -543,7 +693,7 @@ pub struct SyncRule {
     pub source_room: String,
     pub target_platform: String,
     pub target_room: String,
-    /// "both" | "to_target" | "to_source"
+    /// `"both"` | `"to_target"` | `"to_source"`
     pub direction: String,
     pub sync_members: bool,
 }

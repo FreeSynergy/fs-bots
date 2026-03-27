@@ -1,5 +1,7 @@
 // fs-bot/src/context.rs — CommandContext passed to every BotCommand.
 
+use fs_channel::IncomingMessage;
+
 use crate::rights::Right;
 
 /// Runtime context available to every [`BotCommand`](crate::command::BotCommand).
@@ -19,10 +21,16 @@ pub struct CommandContext {
     pub sender: String,
     /// Resolved access level of the caller.
     pub caller_right: Right,
+    /// Resolved `FreeSynergy` user ID (set by IAM bridge in Phase P).
+    pub fs_user_id: Option<String>,
+    /// Arbitrary extra data for command-specific metadata.
+    pub extra: serde_json::Value,
+    /// Original incoming message, if available.
+    pub message: Option<IncomingMessage>,
 }
 
 impl CommandContext {
-    /// Create a new context.
+    /// Create a new context (`fs_user_id/extra/message` default to None/Null/None).
     pub fn new(
         command: impl Into<String>,
         args: Vec<String>,
@@ -38,16 +46,21 @@ impl CommandContext {
             room_id: room_id.into(),
             sender: sender.into(),
             caller_right,
+            fs_user_id: None,
+            extra: serde_json::Value::Null,
+            message: None,
         }
     }
 
     /// Room ID as an owned `String` (useful when `.as_str()` is needed downstream).
+    #[must_use]
     pub fn room(&self) -> String {
         self.room_id.clone()
     }
 
     /// First argument, if any.
+    #[must_use]
     pub fn arg0(&self) -> Option<&str> {
-        self.args.first().map(|s| s.as_str())
+        self.args.first().map(String::as_str)
     }
 }

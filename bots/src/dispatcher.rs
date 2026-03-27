@@ -24,6 +24,7 @@ pub struct CommandDispatcher {
 }
 
 impl CommandDispatcher {
+    #[must_use]
     pub fn new(registry: Arc<CommandRegistry>, audit: AuditLog) -> Self {
         Self { registry, audit }
     }
@@ -53,16 +54,17 @@ impl CommandDispatcher {
         let ctx = CommandContext {
             command: cmd_name.clone(),
             args: msg.command_args.clone(),
+            platform: platform.label().to_string(),
+            room_id: msg.room.as_str().to_owned(),
+            sender: msg.sender.as_str().to_owned(),
             fs_user_id: None,
             caller_right,
-            platform,
             extra: serde_json::Value::Null,
-            message: msg.clone(),
+            message: Some(msg.clone()),
         };
 
-        let response = match self.registry.dispatch(ctx).await {
-            Some(r) => r,
-            None => return,
+        let Some(response) = self.registry.dispatch(ctx).await else {
+            return;
         };
 
         let result_label = match &response {
@@ -76,7 +78,7 @@ impl CommandDispatcher {
                 msg.sender.as_str(),
                 platform.label(),
                 msg.room.as_str(),
-                &format!("command.{}", cmd_name),
+                &format!("command.{cmd_name}"),
                 None,
                 result_label,
                 None,
@@ -87,7 +89,8 @@ impl CommandDispatcher {
     }
 }
 
-/// Recursively send a BotResponse through the channel adapter.
+/// Recursively send a `BotResponse` through the channel adapter.
+#[allow(clippy::cognitive_complexity)]
 async fn send_response(response: BotResponse, default_room: &RoomId, channel: &dyn BotChannel) {
     match response {
         BotResponse::Message { room, text, format } => {
@@ -120,9 +123,14 @@ async fn send_response(response: BotResponse, default_room: &RoomId, channel: &d
                 Box::pin(send_response(r, default_room, channel)).await;
             }
         }
+        BotResponse::Text(text) => {
+            if let Err(e) = channel.send(default_room, &text).await {
+                tracing::error!("send_response (text) failed: {}", e);
+            }
+        }
         BotResponse::Silent => {}
         BotResponse::Error(msg) => {
-            if let Err(e) = channel.send(default_room, &format!("Error: {}", msg)).await {
+            if let Err(e) = channel.send(default_room, &format!("Error: {msg}")).await {
                 tracing::error!("send error message failed: {}", e);
             }
         }

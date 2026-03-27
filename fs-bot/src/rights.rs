@@ -8,7 +8,7 @@ pub enum Right {
     /// Public — no authentication required.
     #[default]
     None,
-    /// Authenticated FreeSynergy member.
+    /// Authenticated `FreeSynergy` member.
     Member,
     /// Room operator (can manage subscriptions, sync rules, etc.).
     Operator,

@@ -1,3 +1,5 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
+
 // bot-calendar — N8: Calendar reminders via Bus + /termine command.
 //
 // Commands: /termine

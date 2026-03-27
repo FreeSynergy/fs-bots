@@ -1,3 +1,5 @@
+#![deny(clippy::all, clippy::pedantic, warnings)]
+
 // fs-bot-runtime — FreeSynergy bot instance entry point.
 //
 // Usage: fs-bot-runtime --config <path/to/bot.toml>
@@ -26,13 +28,13 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|| "bot.toml".to_owned());
 
     let config_str = std::fs::read_to_string(&config_path)
-        .with_context(|| format!("Cannot read config file '{}'", config_path))?;
+        .with_context(|| format!("Cannot read config file '{config_path}'"))?;
     let config: BotInstanceConfig = toml::from_str(&config_str).context("Invalid bot.toml")?;
 
     let db_path = format!("{}/fs-botmanager.db", config.data_dir);
     let db = BotDb::open(&db_path)
         .await
-        .with_context(|| format!("Cannot open database '{}'", db_path))?;
+        .with_context(|| format!("Cannot open database '{db_path}'"))?;
     let db = Arc::new(db);
 
     let audit = AuditLog::new(Arc::clone(&db));

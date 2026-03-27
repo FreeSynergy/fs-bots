@@ -65,40 +65,38 @@ impl BotRouter {
     }
 
     async fn handle_message(&self, msg: IncomingMessage) {
-        let body = msg.body.trim();
+        let text = msg.text.trim();
 
-        if !body.starts_with(&self.prefix) {
+        if !text.starts_with(&self.prefix) {
             return;
         }
 
-        let after_prefix = body[self.prefix.len()..].trim();
+        let after_prefix = text[self.prefix.len()..].trim();
         let mut tokens = after_prefix.split_whitespace();
-        let cmd_name = match tokens.next() {
-            Some(n) => n,
-            None => return,
+        let Some(cmd_name) = tokens.next() else {
+            return;
         };
         let args: Vec<String> = tokens.map(String::from).collect();
 
         debug!(sender = %msg.sender, command = %cmd_name, "bot command received");
 
-        let caller_right = self.permissions.resolve(&msg.sender);
+        let caller_right = self.permissions.resolve(msg.sender.as_str());
 
         let ctx = CommandContext::new(
             cmd_name,
             args,
             &self.platform,
-            &msg.room_id,
-            &msg.sender,
+            msg.room.as_str(),
+            msg.sender.as_str(),
             caller_right,
         );
 
-        let response = match self.registry.dispatch(ctx).await {
-            Some(r) => r,
-            None => return,
+        let Some(response) = self.registry.dispatch(ctx).await else {
+            return;
         };
 
         if let Some(msg_out) = response.into_channel_message() {
-            if let Err(e) = self.channel.send(&msg.room_id, msg_out).await {
+            if let Err(e) = self.channel.send(msg.room.as_str(), msg_out).await {
                 warn!("BotRouter: send failed: {e}");
             }
         }
@@ -107,7 +105,7 @@ impl BotRouter {
 
 #[async_trait]
 impl TopicHandler for BotRouter {
-    fn topic_pattern(&self) -> &str {
+    fn topic_pattern(&self) -> &'static str {
         "channel.message.incoming"
     }
 
