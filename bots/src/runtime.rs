@@ -86,7 +86,7 @@ impl BotRuntime {
 
         // Spawn polling tasks
         for mc in &self.config.messengers {
-            let Some(adapter) = ChannelRegistry::build_bot(mc.kind, mc.adapter.clone()) else {
+            let Some(adapter) = ChannelRegistry::build_bot(mc.kind, &mc.adapter) else {
                 warn!("Adapter {:?} not compiled — skipping", mc.kind);
                 continue;
             };
@@ -113,8 +113,7 @@ impl BotRuntime {
                 match webhook_rx.recv().await {
                     Ok((kind, msg)) => {
                         if let Some(mc) = messenger_configs_wh.iter().find(|m| m.kind == kind) {
-                            if let Some(adapter) =
-                                ChannelRegistry::build_bot(mc.kind, mc.adapter.clone())
+                            if let Some(adapter) = ChannelRegistry::build_bot(mc.kind, &mc.adapter)
                             {
                                 dispatcher_wh.handle(msg, kind, adapter.as_ref()).await;
                             }
@@ -172,7 +171,7 @@ async fn route_trigger_action(
                 warn!("TriggerAction: unknown platform '{}'", platform);
                 return;
             };
-            if let Some(adapter) = ChannelRegistry::build_bot(mc.kind, mc.adapter.clone()) {
+            if let Some(adapter) = ChannelRegistry::build_bot(mc.kind, &mc.adapter) {
                 if let Err(e) = adapter.send(&RoomId::new(room_id), &text).await {
                     error!("trigger send_to_room failed: {}", e);
                 }
@@ -190,7 +189,7 @@ async fn route_trigger_action(
                 warn!("TriggerAction: unknown platform '{}'", platform);
                 return;
             };
-            if let Some(adapter) = ChannelRegistry::build_bot(mc.kind, mc.adapter.clone()) {
+            if let Some(adapter) = ChannelRegistry::build_bot(mc.kind, &mc.adapter) {
                 if let Err(e) = adapter.send_dm(&UserId::new(user_id), &text).await {
                     error!("trigger send_dm failed: {}", e);
                 }
