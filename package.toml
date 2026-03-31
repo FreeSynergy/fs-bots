@@ -1,0 +1,14 @@
+[package]
+id          = "freeSynergy.bots"
+name        = "FreeSynergy Bots"
+kind        = "program"
+version     = "0.1.0"
+description = "FreeSynergy Bot Runtime — BotCommand framework, domain models, database layer, platform adapters"
+license     = "MIT"
+
+[provides]
+capabilities = ["bots"]
+
+[service]
+grpc_port = 50080
+rest_port = 8080
