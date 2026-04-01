@@ -8,5 +8,6 @@ members = [
     "bot-calendar",
     "bot-control",
     "bot-room-sync",
+    "bots-ui",
 ]
 resolver = "2"

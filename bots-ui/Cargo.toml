@@ -1,0 +1,52 @@
+[package]
+name        = "fs-bots-ui"
+description = "FreeSynergy Bots UI — management interface for the bot runtime"
+version     = "0.1.0"
+edition     = "2021"
+license     = "MIT"
+authors     = ["FreeSynergy.Net"]
+
+[lib]
+name = "fs_bots_ui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fs-bots"
+path = "src/main.rs"
+
+[dependencies]
+fs-render = { path = "../../fs-render" }
+fs-bot    = { path = "../fs-bot" }
+fs-i18n   = { path = "../../fs-i18n" }
+fs-error  = { path = "../../fs-libs/fs-error" }
+serde     = { version = "1", features = ["derive"] }
+toml      = { version = "1" }
+chrono    = { version = "0.4", features = ["serde"] }
+
+async-trait        = "0.1"
+thiserror          = "2"
+tracing            = "0.1"
+tokio              = { version = "1", features = ["full"] }
+
+# gRPC
+tonic = "0.12"
+prost = "0.13"
+
+# REST + OpenAPI
+axum              = "0.7"
+utoipa            = { version = "5", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "8", features = ["axum"] }
+tower-http        = { version = "0.6", features = ["trace"] }
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Logging
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[build-dependencies]
+tonic-build         = "0.12"
+protoc-bin-vendored = "3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }
