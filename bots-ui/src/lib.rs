@@ -12,6 +12,7 @@ pub mod bot_strategy;
 pub mod cli;
 pub mod controller;
 pub mod grpc;
+pub mod keys;
 pub mod model;
 pub mod rest;
 pub mod view;
