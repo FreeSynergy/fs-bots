@@ -2,9 +2,7 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use fs_db::sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QueryOrder,
-};
+use serde_json::Value;
 
 use crate::{entities::join_request, BotDb};
 
@@ -20,17 +18,31 @@ impl BotDb {
         room_id: &str,
         user_id: &str,
     ) -> Result<i64> {
-        let result = join_request::ActiveModel {
-            platform: Set(platform.to_string()),
-            room_id: Set(room_id.to_string()),
-            user_id: Set(user_id.to_string()),
-            status: Set("pending".to_string()),
-            created_at: Set(Utc::now().to_rfc3339()),
-            ..Default::default()
-        }
-        .insert(&self.conn)
-        .await?;
-        Ok(result.id)
+        self.engine
+            .execute(
+                "INSERT INTO join_requests \
+                 (platform, room_id, user_id, status, created_at) \
+                 VALUES (?, ?, ?, 'pending', ?)",
+                vec![
+                    Value::String(platform.to_string()),
+                    Value::String(room_id.to_string()),
+                    Value::String(user_id.to_string()),
+                    Value::String(Utc::now().to_rfc3339()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("add_join_request failed: {e}"))?;
+        let id_rows = self
+            .engine
+            .execute("SELECT last_insert_rowid() AS id", vec![])
+            .await
+            .map_err(|e| anyhow::anyhow!("last_insert_rowid failed: {e}"))?;
+        id_rows
+            .rows
+            .first()
+            .and_then(|r| r.values.first())
+            .and_then(serde_json::Value::as_i64)
+            .ok_or_else(|| anyhow::anyhow!("add_join_request: no rowid returned"))
     }
 
     /// Fetch a single join request by id.
@@ -39,7 +51,18 @@ impl BotDb {
     ///
     /// Returns an error if the database query fails.
     pub async fn get_join_request(&self, id: i64) -> Result<Option<join_request::Model>> {
-        Ok(join_request::Entity::find_by_id(id).one(&self.conn).await?)
+        let rows = self
+            .engine
+            .execute(
+                "SELECT * FROM join_requests WHERE id = ?",
+                vec![Value::Number(id.into())],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("get_join_request query failed: {e}"))?;
+        rows.rows
+            .first()
+            .map(join_request::Model::from_row)
+            .transpose()
     }
 
     /// List all pending join requests for `platform`/`room_id`.
@@ -52,35 +75,50 @@ impl BotDb {
         platform: &str,
         room_id: &str,
     ) -> Result<Vec<join_request::Model>> {
-        Ok(join_request::Entity::find()
-            .filter(join_request::Column::Platform.eq(platform))
-            .filter(join_request::Column::RoomId.eq(room_id))
-            .filter(join_request::Column::Status.eq("pending"))
-            .order_by_asc(join_request::Column::CreatedAt)
-            .all(&self.conn)
-            .await?)
+        let rows = self
+            .engine
+            .execute(
+                "SELECT * FROM join_requests \
+                 WHERE platform = ? AND room_id = ? AND status = 'pending' \
+                 ORDER BY created_at ASC",
+                vec![
+                    Value::String(platform.to_string()),
+                    Value::String(room_id.to_string()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("list_pending_join_requests query failed: {e}"))?;
+        rows.rows
+            .iter()
+            .map(join_request::Model::from_row)
+            .collect()
     }
 
     /// Update the status of a join request.
     ///
     /// # Errors
     ///
-    /// Returns an error if the request is not found or the database write fails.
+    /// Returns an error if the database write fails.
     pub async fn resolve_join_request(
         &self,
         id: i64,
         status: &str,
         iam_result: Option<&str>,
     ) -> Result<()> {
-        let mut model: join_request::ActiveModel = join_request::Entity::find_by_id(id)
-            .one(&self.conn)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("join request {id} not found"))?
-            .into();
-        model.status = Set(status.to_string());
-        model.iam_result = Set(iam_result.map(str::to_string));
-        model.resolved_at = Set(Some(Utc::now().to_rfc3339()));
-        model.update(&self.conn).await?;
+        self.engine
+            .execute(
+                "UPDATE join_requests \
+                 SET status = ?, iam_result = ?, resolved_at = ? \
+                 WHERE id = ?",
+                vec![
+                    Value::String(status.to_string()),
+                    iam_result.map_or(Value::Null, |v| Value::String(v.to_string())),
+                    Value::String(Utc::now().to_rfc3339()),
+                    Value::Number(id.into()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("resolve_join_request failed: {e}"))?;
         Ok(())
     }
 }

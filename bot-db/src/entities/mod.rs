@@ -1,7 +1,8 @@
-// Bot domain entities — SeaORM models for all bot manager tables.
+// Bot domain entities — plain domain structs for all bot manager tables.
 //
-// Each sub-module is one table. The BotDb struct in db.rs uses these
-// entities via typed repository methods — no raw SQL anywhere else.
+// No SeaORM macros — persistence goes through DbEngine (fs-db abstraction).
+// Each sub-module is one table; each struct has a `from_row` method that
+// maps a DbRow to the struct.
 
 pub mod audit_log;
 pub mod bot_meta;

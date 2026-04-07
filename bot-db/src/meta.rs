@@ -1,7 +1,7 @@
 // meta.rs — Bot metadata key/value store methods for BotDb.
 
 use anyhow::Result;
-use fs_db::sea_orm::{ActiveValue::Set, EntityTrait};
+use serde_json::Value;
 
 use crate::{entities::bot_meta, BotDb};
 
@@ -12,9 +12,18 @@ impl BotDb {
     ///
     /// Returns an error if the database query fails.
     pub async fn get_meta(&self, key: &str) -> Result<Option<String>> {
-        Ok(bot_meta::Entity::find_by_id(key.to_string())
-            .one(&self.conn)
-            .await?
+        let rows = self
+            .engine
+            .execute(
+                "SELECT * FROM bot_meta WHERE key = ?",
+                vec![Value::String(key.to_string())],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("get_meta query failed: {e}"))?;
+        Ok(rows
+            .rows
+            .first()
+            .and_then(|r| bot_meta::Model::from_row(r).ok())
             .map(|m| m.value))
     }
 
@@ -24,18 +33,17 @@ impl BotDb {
     ///
     /// Returns an error if the database write fails.
     pub async fn set_meta(&self, key: &str, value: &str) -> Result<()> {
-        use fs_db::sea_orm::sea_query::OnConflict;
-        bot_meta::Entity::insert(bot_meta::ActiveModel {
-            key: Set(key.to_string()),
-            value: Set(value.to_string()),
-        })
-        .on_conflict(
-            OnConflict::column(bot_meta::Column::Key)
-                .update_column(bot_meta::Column::Value)
-                .to_owned(),
-        )
-        .exec(&self.conn)
-        .await?;
+        self.engine
+            .execute(
+                "INSERT INTO bot_meta (key, value) VALUES (?, ?) \
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                vec![
+                    Value::String(key.to_string()),
+                    Value::String(value.to_string()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("set_meta write failed: {e}"))?;
         Ok(())
     }
 }

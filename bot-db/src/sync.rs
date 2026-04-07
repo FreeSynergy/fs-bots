@@ -2,15 +2,9 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use fs_db::sea_orm::sea_query::Expr;
-use fs_db::sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, ColumnTrait, Condition, EntityTrait, QueryFilter,
-};
+use serde_json::Value;
 
-use crate::{
-    entities::{sync_message, sync_rule},
-    BotDb,
-};
+use crate::{entities::sync_rule, BotDb};
 
 /// A resolved sync rule (domain type, not raw entity model).
 #[derive(Debug, Clone)]
@@ -54,39 +48,47 @@ impl BotDb {
         direction: &str,
         sync_members: bool,
     ) -> Result<i64> {
-        use fs_db::sea_orm::sea_query::OnConflict;
-        sync_rule::Entity::insert(sync_rule::ActiveModel {
-            source_platform: Set(src_platform.to_string()),
-            source_room: Set(src_room.to_string()),
-            target_platform: Set(tgt_platform.to_string()),
-            target_room: Set(tgt_room.to_string()),
-            direction: Set(direction.to_string()),
-            sync_members: Set(i64::from(sync_members)),
-            enabled: Set(1),
-            created_at: Set(Utc::now().to_rfc3339()),
-            ..Default::default()
-        })
-        .on_conflict(
-            OnConflict::columns([
-                sync_rule::Column::SourcePlatform,
-                sync_rule::Column::SourceRoom,
-                sync_rule::Column::TargetPlatform,
-                sync_rule::Column::TargetRoom,
-            ])
-            .update_columns([sync_rule::Column::Enabled, sync_rule::Column::Direction])
-            .to_owned(),
-        )
-        .exec(&self.conn)
-        .await?;
-        let rule = sync_rule::Entity::find()
-            .filter(sync_rule::Column::SourcePlatform.eq(src_platform))
-            .filter(sync_rule::Column::SourceRoom.eq(src_room))
-            .filter(sync_rule::Column::TargetPlatform.eq(tgt_platform))
-            .filter(sync_rule::Column::TargetRoom.eq(tgt_room))
-            .one(&self.conn)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("sync rule not found after upsert"))?;
-        Ok(rule.id)
+        self.engine
+            .execute(
+                "INSERT INTO sync_rules \
+                 (source_platform, source_room, target_platform, target_room, \
+                  direction, sync_members, enabled, created_at) \
+                 VALUES (?, ?, ?, ?, ?, ?, 1, ?) \
+                 ON CONFLICT(source_platform, source_room, target_platform, target_room) \
+                 DO UPDATE SET enabled = 1, direction = excluded.direction",
+                vec![
+                    Value::String(src_platform.to_string()),
+                    Value::String(src_room.to_string()),
+                    Value::String(tgt_platform.to_string()),
+                    Value::String(tgt_room.to_string()),
+                    Value::String(direction.to_string()),
+                    Value::Number(i64::from(sync_members).into()),
+                    Value::String(Utc::now().to_rfc3339()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("create_rule upsert failed: {e}"))?;
+
+        let rows = self
+            .engine
+            .execute(
+                "SELECT id FROM sync_rules \
+                 WHERE source_platform = ? AND source_room = ? \
+                   AND target_platform = ? AND target_room = ?",
+                vec![
+                    Value::String(src_platform.to_string()),
+                    Value::String(src_room.to_string()),
+                    Value::String(tgt_platform.to_string()),
+                    Value::String(tgt_room.to_string()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("create_rule fetch id failed: {e}"))?;
+        rows.rows
+            .first()
+            .and_then(|r| r.values.first())
+            .and_then(serde_json::Value::as_i64)
+            .ok_or_else(|| anyhow::anyhow!("sync rule not found after upsert"))
     }
 
     /// Disable (not delete) a sync rule. Returns `true` if a rule was found.
@@ -101,15 +103,22 @@ impl BotDb {
         tgt_platform: &str,
         tgt_room: &str,
     ) -> Result<bool> {
-        let res = sync_rule::Entity::update_many()
-            .col_expr(sync_rule::Column::Enabled, Expr::value(0i64))
-            .filter(sync_rule::Column::SourcePlatform.eq(src_platform))
-            .filter(sync_rule::Column::SourceRoom.eq(src_room))
-            .filter(sync_rule::Column::TargetPlatform.eq(tgt_platform))
-            .filter(sync_rule::Column::TargetRoom.eq(tgt_room))
-            .exec(&self.conn)
-            .await?;
-        Ok(res.rows_affected > 0)
+        let result = self
+            .engine
+            .execute(
+                "UPDATE sync_rules SET enabled = 0 \
+                 WHERE source_platform = ? AND source_room = ? \
+                   AND target_platform = ? AND target_room = ?",
+                vec![
+                    Value::String(src_platform.to_string()),
+                    Value::String(src_room.to_string()),
+                    Value::String(tgt_platform.to_string()),
+                    Value::String(tgt_room.to_string()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("disable_rule failed: {e}"))?;
+        Ok(result.rows_affected > 0)
     }
 
     /// Active sync rules where `platform`/`room` is source, or bidirectional target.
@@ -118,25 +127,27 @@ impl BotDb {
     ///
     /// Returns an error if the database query fails.
     pub async fn active_rules_for(&self, platform: &str, room: &str) -> Result<Vec<SyncRule>> {
-        let rows = sync_rule::Entity::find()
-            .filter(sync_rule::Column::Enabled.eq(1i64))
-            .filter(
-                Condition::any()
-                    .add(
-                        Condition::all()
-                            .add(sync_rule::Column::SourcePlatform.eq(platform))
-                            .add(sync_rule::Column::SourceRoom.eq(room)),
-                    )
-                    .add(
-                        Condition::all()
-                            .add(sync_rule::Column::TargetPlatform.eq(platform))
-                            .add(sync_rule::Column::TargetRoom.eq(room))
-                            .add(sync_rule::Column::Direction.eq("both")),
-                    ),
+        let rows = self
+            .engine
+            .execute(
+                "SELECT * FROM sync_rules \
+                 WHERE enabled = 1 AND ( \
+                   (source_platform = ? AND source_room = ?) OR \
+                   (target_platform = ? AND target_room = ? AND direction = 'both') \
+                 )",
+                vec![
+                    Value::String(platform.to_string()),
+                    Value::String(room.to_string()),
+                    Value::String(platform.to_string()),
+                    Value::String(room.to_string()),
+                ],
             )
-            .all(&self.conn)
-            .await?;
-        Ok(rows.into_iter().map(SyncRule::from).collect())
+            .await
+            .map_err(|e| anyhow::anyhow!("active_rules_for query failed: {e}"))?;
+        rows.rows
+            .iter()
+            .map(|r| sync_rule::Model::from_row(r).map(SyncRule::from))
+            .collect()
     }
 
     /// All active sync rules (used by trigger handler on startup).
@@ -145,11 +156,15 @@ impl BotDb {
     ///
     /// Returns an error if the database query fails.
     pub async fn all_active_rules(&self) -> Result<Vec<SyncRule>> {
-        let rows = sync_rule::Entity::find()
-            .filter(sync_rule::Column::Enabled.eq(1i64))
-            .all(&self.conn)
-            .await?;
-        Ok(rows.into_iter().map(SyncRule::from).collect())
+        let rows = self
+            .engine
+            .execute("SELECT * FROM sync_rules WHERE enabled = 1", vec![])
+            .await
+            .map_err(|e| anyhow::anyhow!("all_active_rules query failed: {e}"))?;
+        rows.rows
+            .iter()
+            .map(|r| sync_rule::Model::from_row(r).map(SyncRule::from))
+            .collect()
     }
 
     /// Record a forwarded message for deduplication. Returns `false` if already forwarded.
@@ -163,25 +178,35 @@ impl BotDb {
         direction: &str,
         msg_id_src: &str,
     ) -> Result<bool> {
-        let exists = sync_message::Entity::find()
-            .filter(sync_message::Column::RuleId.eq(rule_id))
-            .filter(sync_message::Column::Direction.eq(direction))
-            .filter(sync_message::Column::MsgIdSrc.eq(msg_id_src))
-            .one(&self.conn)
-            .await?
-            .is_some();
-        if exists {
+        let check = self
+            .engine
+            .execute(
+                "SELECT id FROM sync_messages \
+                 WHERE rule_id = ? AND direction = ? AND msg_id_src = ?",
+                vec![
+                    Value::Number(rule_id.into()),
+                    Value::String(direction.to_string()),
+                    Value::String(msg_id_src.to_string()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("record_forward check failed: {e}"))?;
+        if !check.rows.is_empty() {
             return Ok(false);
         }
-        sync_message::ActiveModel {
-            rule_id: Set(rule_id),
-            direction: Set(direction.to_string()),
-            msg_id_src: Set(msg_id_src.to_string()),
-            forwarded_at: Set(Utc::now().to_rfc3339()),
-            ..Default::default()
-        }
-        .insert(&self.conn)
-        .await?;
+        self.engine
+            .execute(
+                "INSERT INTO sync_messages \
+                 (rule_id, direction, msg_id_src, forwarded_at) VALUES (?, ?, ?, ?)",
+                vec![
+                    Value::Number(rule_id.into()),
+                    Value::String(direction.to_string()),
+                    Value::String(msg_id_src.to_string()),
+                    Value::String(Utc::now().to_rfc3339()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("record_forward insert failed: {e}"))?;
         Ok(true)
     }
 }

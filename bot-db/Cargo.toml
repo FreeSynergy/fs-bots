@@ -6,8 +6,17 @@ edition     = "2021"
 license     = "MIT"
 authors     = ["FreeSynergy.Net"]
 
+[features]
+default = ["sqlite"]
+sqlite  = ["dep:fs-db-engine-sqlite"]
+
 [dependencies]
-fs-db   = { path = "../../fs-db", features = ["sqlite"] }
-sea-orm = { version = "=2.0.0-rc.37", default-features = false, features = ["macros"] }
-anyhow  = "1"
-chrono  = { version = "0.4", features = ["serde"] }
+fs-db               = { path = "../../fs-db" }
+fs-db-engine-sqlite = { path = "../../fs-db-engine-sqlite", optional = true }
+fs-error            = { path = "../../fs-libs/fs-error" }
+anyhow              = "1"
+chrono              = { version = "0.4", features = ["serde"] }
+serde_json          = "1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

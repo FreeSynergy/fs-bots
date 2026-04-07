@@ -1,9 +1,10 @@
-use sea_orm::entity::prelude::*;
+// Sync rule entity.
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "sync_rules")]
+use anyhow::Result;
+use fs_db::{engine::DbRow, record::DbRowExt};
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Model {
-    #[sea_orm(primary_key)]
     pub id: i64,
     pub source_platform: String,
     pub source_room: String,
@@ -15,16 +16,23 @@ pub struct Model {
     pub created_at: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-    #[sea_orm(has_many = "super::sync_message::Entity")]
-    Messages,
-}
-
-impl Related<super::sync_message::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Messages.def()
+impl Model {
+    /// Build from a database row.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a required column is missing or has the wrong type.
+    pub fn from_row(row: &DbRow) -> Result<Self> {
+        Ok(Self {
+            id: row.get_i64("id")?,
+            source_platform: row.get_string("source_platform")?,
+            source_room: row.get_string("source_room")?,
+            target_platform: row.get_string("target_platform")?,
+            target_room: row.get_string("target_room")?,
+            direction: row.get_string("direction")?,
+            sync_members: row.get_i64("sync_members")?,
+            enabled: row.get_i64("enabled")?,
+            created_at: row.get_string("created_at")?,
+        })
     }
 }
-
-impl ActiveModelBehavior for ActiveModel {}

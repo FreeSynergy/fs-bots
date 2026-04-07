@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use fs_db::sea_orm::{ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter};
+use serde_json::Value;
 
 use crate::{entities::subscription, BotDb};
 
@@ -13,18 +13,19 @@ impl BotDb {
     ///
     /// Returns an error if the database write fails.
     pub async fn subscribe(&self, platform: &str, room_id: &str, topic: &str) -> Result<()> {
-        use fs_db::sea_orm::sea_query::OnConflict;
-        let model = subscription::ActiveModel {
-            platform: Set(platform.to_string()),
-            room_id: Set(room_id.to_string()),
-            topic: Set(topic.to_string()),
-            created_at: Set(Utc::now().to_rfc3339()),
-            ..Default::default()
-        };
-        subscription::Entity::insert(model)
-            .on_conflict(OnConflict::new().do_nothing().to_owned())
-            .exec(&self.conn)
-            .await?;
+        self.engine
+            .execute(
+                "INSERT OR IGNORE INTO subscriptions (platform, room_id, topic, created_at) \
+                 VALUES (?, ?, ?, ?)",
+                vec![
+                    Value::String(platform.to_string()),
+                    Value::String(room_id.to_string()),
+                    Value::String(topic.to_string()),
+                    Value::String(Utc::now().to_rfc3339()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("subscribe failed: {e}"))?;
         Ok(())
     }
 
@@ -34,12 +35,17 @@ impl BotDb {
     ///
     /// Returns an error if the database write fails.
     pub async fn unsubscribe(&self, platform: &str, room_id: &str, topic: &str) -> Result<()> {
-        subscription::Entity::delete_many()
-            .filter(subscription::Column::Platform.eq(platform))
-            .filter(subscription::Column::RoomId.eq(room_id))
-            .filter(subscription::Column::Topic.eq(topic))
-            .exec(&self.conn)
-            .await?;
+        self.engine
+            .execute(
+                "DELETE FROM subscriptions WHERE platform = ? AND room_id = ? AND topic = ?",
+                vec![
+                    Value::String(platform.to_string()),
+                    Value::String(room_id.to_string()),
+                    Value::String(topic.to_string()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("unsubscribe failed: {e}"))?;
         Ok(())
     }
 
@@ -53,14 +59,21 @@ impl BotDb {
         platform: &str,
         room_id: &str,
     ) -> Result<Vec<String>> {
-        Ok(subscription::Entity::find()
-            .filter(subscription::Column::Platform.eq(platform))
-            .filter(subscription::Column::RoomId.eq(room_id))
-            .all(&self.conn)
-            .await?
-            .into_iter()
-            .map(|r| r.topic)
-            .collect())
+        let rows = self
+            .engine
+            .execute(
+                "SELECT * FROM subscriptions WHERE platform = ? AND room_id = ?",
+                vec![
+                    Value::String(platform.to_string()),
+                    Value::String(room_id.to_string()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("subscriptions_for_room query failed: {e}"))?;
+        rows.rows
+            .iter()
+            .map(|r| subscription::Model::from_row(r).map(|m| m.topic))
+            .collect()
     }
 
     /// All (platform, `room_id`) pairs subscribed to the given topic.
@@ -72,12 +85,17 @@ impl BotDb {
         &self,
         topic: &str,
     ) -> Result<Vec<(String, String)>> {
-        Ok(subscription::Entity::find()
-            .filter(subscription::Column::Topic.eq(topic))
-            .all(&self.conn)
-            .await?
-            .into_iter()
-            .map(|r| (r.platform, r.room_id))
-            .collect())
+        let rows = self
+            .engine
+            .execute(
+                "SELECT * FROM subscriptions WHERE topic = ?",
+                vec![Value::String(topic.to_string())],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("subscriptions_for_room_by_topic query failed: {e}"))?;
+        rows.rows
+            .iter()
+            .map(|r| subscription::Model::from_row(r).map(|m| (m.platform, m.room_id)))
+            .collect()
     }
 }

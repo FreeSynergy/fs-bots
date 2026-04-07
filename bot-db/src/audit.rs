@@ -2,9 +2,7 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use fs_db::sea_orm::{
-    ActiveModelTrait, ActiveValue::Set, EntityTrait, Order, QueryOrder, QuerySelect,
-};
+use serde_json::Value;
 
 use crate::{entities::audit_log, BotDb};
 
@@ -28,20 +26,25 @@ impl BotDb {
     ///
     /// Returns an error if the database write fails.
     pub async fn audit(&self, entry: AuditEntry<'_>) -> Result<()> {
-        audit_log::ActiveModel {
-            actor_type: Set(entry.actor_type.to_string()),
-            actor_id: Set(entry.actor_id.to_string()),
-            platform: Set(entry.platform.map(str::to_string)),
-            room_id: Set(entry.room_id.map(str::to_string)),
-            action: Set(entry.action.to_string()),
-            target: Set(entry.target.map(str::to_string)),
-            result: Set(entry.result.to_string()),
-            detail: Set(entry.detail.map(str::to_string)),
-            created_at: Set(Utc::now().to_rfc3339()),
-            ..Default::default()
-        }
-        .insert(&self.conn)
-        .await?;
+        self.engine
+            .execute(
+                "INSERT INTO audit_log \
+                 (actor_type, actor_id, platform, room_id, action, target, result, detail, created_at) \
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                vec![
+                    Value::String(entry.actor_type.to_string()),
+                    Value::String(entry.actor_id.to_string()),
+                    entry.platform.map_or(Value::Null, |v| Value::String(v.to_string())),
+                    entry.room_id.map_or(Value::Null, |v| Value::String(v.to_string())),
+                    Value::String(entry.action.to_string()),
+                    entry.target.map_or(Value::Null, |v| Value::String(v.to_string())),
+                    Value::String(entry.result.to_string()),
+                    entry.detail.map_or(Value::Null, |v| Value::String(v.to_string())),
+                    Value::String(Utc::now().to_rfc3339()),
+                ],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("audit insert failed: {e}"))?;
         Ok(())
     }
 
@@ -51,10 +54,14 @@ impl BotDb {
     ///
     /// Returns an error if the database query fails.
     pub async fn recent_audit(&self, limit: u64) -> Result<Vec<audit_log::Model>> {
-        Ok(audit_log::Entity::find()
-            .order_by(audit_log::Column::Id, Order::Desc)
-            .limit(limit)
-            .all(&self.conn)
-            .await?)
+        let rows = self
+            .engine
+            .execute(
+                "SELECT * FROM audit_log ORDER BY id DESC LIMIT ?",
+                vec![Value::Number(limit.into())],
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!("recent_audit query failed: {e}"))?;
+        rows.rows.iter().map(audit_log::Model::from_row).collect()
     }
 }

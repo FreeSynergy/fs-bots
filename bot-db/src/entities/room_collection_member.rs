@@ -1,31 +1,26 @@
-use sea_orm::entity::prelude::*;
+// Room collection member entity.
 
-#[derive(Clone, Debug, PartialEq, DeriveEntityModel)]
-#[sea_orm(table_name = "room_collection_members")]
+use anyhow::Result;
+use fs_db::{engine::DbRow, record::DbRowExt};
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Model {
-    #[sea_orm(primary_key)]
     pub collection_id: i64,
-    #[sea_orm(primary_key)]
     pub platform: String,
-    #[sea_orm(primary_key)]
     pub room_id: String,
 }
 
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-    #[sea_orm(
-        belongs_to = "super::room_collection::Entity",
-        from = "Column::CollectionId",
-        to = "super::room_collection::Column::Id",
-        on_delete = "Cascade"
-    )]
-    Collection,
-}
-
-impl Related<super::room_collection::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Collection.def()
+impl Model {
+    /// Build from a database row.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a required column is missing or has the wrong type.
+    pub fn from_row(row: &DbRow) -> Result<Self> {
+        Ok(Self {
+            collection_id: row.get_i64("collection_id")?,
+            platform: row.get_string("platform")?,
+            room_id: row.get_string("room_id")?,
+        })
     }
 }
-
-impl ActiveModelBehavior for ActiveModel {}

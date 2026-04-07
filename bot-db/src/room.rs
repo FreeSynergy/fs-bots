@@ -2,7 +2,7 @@
 
 use anyhow::Result;
 use chrono::Utc;
-use fs_db::sea_orm::{ActiveValue::Set, ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
+use serde_json::Value;
 
 use crate::{entities::known_room, BotDb};
 
@@ -28,27 +28,24 @@ impl BotDb {
         room_name: Option<&str>,
         member_count: Option<i64>,
     ) -> Result<()> {
-        use fs_db::sea_orm::sea_query::OnConflict;
-        let model = known_room::ActiveModel {
-            platform: Set(platform.to_string()),
-            room_id: Set(room_id.to_string()),
-            room_name: Set(room_name.map(str::to_string)),
-            member_count: Set(member_count),
-            last_seen: Set(Utc::now().to_rfc3339()),
-            ..Default::default()
-        };
-        known_room::Entity::insert(model)
-            .on_conflict(
-                OnConflict::columns([known_room::Column::Platform, known_room::Column::RoomId])
-                    .update_columns([
-                        known_room::Column::RoomName,
-                        known_room::Column::MemberCount,
-                        known_room::Column::LastSeen,
-                    ])
-                    .to_owned(),
+        self.engine
+            .execute(
+                "INSERT INTO known_rooms (platform, room_id, room_name, member_count, last_seen) \
+                 VALUES (?, ?, ?, ?, ?) \
+                 ON CONFLICT(platform, room_id) DO UPDATE SET \
+                   room_name    = excluded.room_name, \
+                   member_count = excluded.member_count, \
+                   last_seen    = excluded.last_seen",
+                vec![
+                    Value::String(platform.to_string()),
+                    Value::String(room_id.to_string()),
+                    room_name.map_or(Value::Null, |v| Value::String(v.to_string())),
+                    member_count.map_or(Value::Null, |v| Value::Number(v.into())),
+                    Value::String(Utc::now().to_rfc3339()),
+                ],
             )
-            .exec(&self.conn)
-            .await?;
+            .await
+            .map_err(|e| anyhow::anyhow!("upsert_room failed: {e}"))?;
         Ok(())
     }
 
@@ -58,22 +55,32 @@ impl BotDb {
     ///
     /// Returns an error if the database query fails.
     pub async fn filter_rooms(&self, filter: &GroupFilter) -> Result<Vec<known_room::Model>> {
-        let mut query = known_room::Entity::find();
+        let mut sql = String::from("SELECT * FROM known_rooms WHERE 1=1");
+        let mut params: Vec<Value> = Vec::new();
+
         if let Some(ref platform) = filter.platform {
-            query = query.filter(known_room::Column::Platform.eq(platform.as_str()));
+            sql.push_str(" AND platform = ?");
+            params.push(Value::String(platform.clone()));
         }
         if let Some(ref name) = filter.name_contains {
-            query = query.filter(known_room::Column::RoomName.contains(name.as_str()));
+            sql.push_str(" AND room_name LIKE ?");
+            params.push(Value::String(format!("%{name}%")));
         }
         if let Some(min) = filter.min_members {
-            query = query.filter(known_room::Column::MemberCount.gte(min));
+            sql.push_str(" AND member_count >= ?");
+            params.push(Value::Number(min.into()));
         }
         if let Some(max) = filter.max_members {
-            query = query.filter(known_room::Column::MemberCount.lte(max));
+            sql.push_str(" AND member_count <= ?");
+            params.push(Value::Number(max.into()));
         }
-        Ok(query
-            .order_by_asc(known_room::Column::RoomName)
-            .all(&self.conn)
-            .await?)
+        sql.push_str(" ORDER BY room_name ASC");
+
+        let rows = self
+            .engine
+            .execute(&sql, params)
+            .await
+            .map_err(|e| anyhow::anyhow!("filter_rooms query failed: {e}"))?;
+        rows.rows.iter().map(known_room::Model::from_row).collect()
     }
 }
